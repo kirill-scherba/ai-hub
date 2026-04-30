@@ -1,0 +1,60 @@
+# 🐪 Generative MCP Hub
+
+**Let AI generate new MCP tools at runtime — in a Safe sandbox.**
+
+A unique MCP server that lets AI assistants create, execute, export, import, and share new MCP tools **dynamically**, using Perl's built-in Safe sandbox (since 1994, no external dependencies).
+
+## Why?
+
+All existing "tool marketplaces" are static — tools are written by humans, submitted, and installed. This hub turns that upside-down:
+
+1. **AI writes tools** — an AI assistant can generate a Perl function at runtime
+2. **Safe sandbox** — code runs in `Safe->new()` with whitelisted modules only
+3. **Instant registration** — the new tool appears in `tools/list` immediately
+4. **Export/Import** — tools can be saved as JSON and shared with other AIs
+
+## Built-in Tools
+
+| Tool | Description |
+|---|---|
+| `tool_generate` | Create a new MCP tool with name, schema, and Perl code |
+| `tool_list` | List all tools (built-in + generated) |
+| `tool_export` | Export a generated tool as JSON |
+| `tool_import` | Import a tool from JSON |
+| `tool_remove` | Remove a generated tool |
+
+## Quick Start
+
+```bash
+# Run the hub (stdio mode for MCP)
+perl generative-mcp-hub.pl
+```
+
+Then configure it in your MCP client (Cline, Claude Desktop, etc.):
+
+```json
+{
+  "mcpServers": {
+    "ai-hub": {
+      "command": "perl",
+      "args": ["/path/to/ai-hub/generative-mcp-hub.pl"]
+    }
+  }
+}
+```
+
+## Example: Generate a Tool
+
+Once connected, tell your AI assistant:
+
+> "Use tool_generate to create a tool called 'weather_check' that takes a city name and returns a simulated weather report."
+
+The AI will craft a Perl function, the hub will compile it in the Safe sandbox, and the new `weather_check` tool becomes instantly available.
+
+## Why Perl?
+
+Only Perl has `Safe->new()` built into its core since 1994. No Python, JavaScript, or Lua offers a comparable built-in sandbox without external dependencies.
+
+## License
+
+MIT
