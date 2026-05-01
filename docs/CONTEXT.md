@@ -1,39 +1,57 @@
-# Project Context — AI Hub
+# AI Hub — Context
 
-## Overview
+## What is AI Hub?
 
-**Generative MCP Hub** — MCP server that lets AI assistants generate new MCP tools at runtime using Perl's Safe sandbox.
+AI Hub — это платформа для создания, обмена и поиска MCP инструментов между AI-ассистентами.
 
-## Repository
+Состоит из двух компонентов:
 
-- **URL:** github.com/kirill-scherba/ai-hub
-- **Language:** Perl (JSON::PP, Safe, POSIX)
-- **Protocol:** JSON-RPC 2.0 over stdin/stdout (MCP)
+### 1. **Hub Server** (Go)
+- HTTP REST API сервер на Go с портом 8484
+- Хранит инструменты в keyvalembd (libSQL + Ollama embeddings)
+- Позволяет публиковать, искать (семантически), получать и удалять инструменты
+- Endpoints:
+  - `POST /tools` — создать/опубликовать инструмент
+  - `GET /tools?prefix=` — список инструментов с опциональным префиксом
+  - `GET /tools/{name}` — получить конкретный инструмент
+  - `DELETE /tools/{name}` — удалить инструмент
+  - `GET /search?q=...&limit=N` — семантический поиск по инструментам
+- Флаги: `--port`, `AI_HUB_PORT`, `AI_HUB_DATA_DIR`
 
-## Why This Exists
+### 2. **generative-mcp-hub.pl** (Perl MCP сервер)
+- MCP сервер, который работает через JSON-RPC 2.0 по stdin/stdout
+- Позволяет AI генерировать новые MCP инструменты на Perl через Safe sandbox
+- Инструменты:
+  - `tool_generate` — создать новый инструмент
+  - `tool_list` — список всех инструментов
+  - `tool_export` / `tool_import` — экспорт/импорт JSON
+  - `tool_remove` — удалить инструмент
+  - **hub_publish** — опубликовать локальный инструмент на Hub Server
+  - **hub_search** — семантический поиск инструментов на Hub
+  - **hub_pull** — скачать инструмент с Hub и установить локально
+  - **hub_list** — список инструментов на Hub
+- Флаги: `--hub-url <URL>`, `AI_HUB_SERVER_URL`
 
-Existing MCP tool marketplaces are static: humans write tools, submit them, and clients install them. AI Hub flips this: AI assistants can write, compile, and execute Perl code in a Safe sandbox at runtime, registering the result as an instant MCP tool.
+## Архитектура
 
-## Key Technologies
+```
+┌─────────────┐     HTTP/REST      ┌──────────────────┐
+│  MCP Client  │ ◄──── JSON-RPC ───► │ generative-mcp-  │
+│  (AI Assistant) │                  │ hub.pl (Perl)    │
+└─────────────┘                     └────────┬─────────┘
+                                              │ --hub-url http://host:8484
+                                              ▼
+                                    ┌──────────────────┐
+                                    │  Hub Server (Go)  │
+                                    │  port :8484        │
+                                    │  keyvalembd        │
+                                    │  + Ollama embeds   │
+                                    └──────────────────┘
+```
 
-- **Perl 5** — the language (Safe sandbox since 1994)
-- **Safe** — built-in sandbox for AI-generated code
-- **JSON** — JSON-RPC 2.0 protocol (via JSON::PP)
-- **MCP** — Model Context Protocol (stdio transport)
+## Ключевые концепции
 
-## Built-in Tools
-
-1. `tool_generate` — create a tool from name + schema + Perl code
-2. `tool_list` — list built-in and generated tools
-3. `tool_export` — export a generated tool as JSON
-4. `tool_import` — import a tool from JSON
-5. `tool_remove` — remove a generated tool
-6. `weather` — current weather for any city (supports Cyrillic)
-7. `exchange_rate` — currency exchange rates (any ISO 4217 pair)
-
-## Origin
-
-- **Date:** 2026-04-30
-- **Inspiration:** db-tool-mcp (github.com/kirill-scherba/db-tool-mcp)
-- **User:** Kirill — Your Majesty
-- **AI:** Baron (Cline incarnation)
+- **Tool definition** — JSON объект с name, description, inputSchema, code, created_at
+- **Semantic search** — через Ollama embedding (модель embeddinggemma:latest)
+- **Safe sandbox** — Perl Safe module для безопасного выполнения кода
+- **Persistence** — инструменты сохраняются на диск (tools.json) и в keyvalembd (hub.db)

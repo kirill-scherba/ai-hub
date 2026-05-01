@@ -45,6 +45,23 @@ binmode(STDERR, ":utf8");
 # Logging (to stderr — stdout is reserved for JSON-RPC protocol)
 # ---------------------------------------------------------------------------
 my $DEBUG = $ENV{AI_HUB_DEBUG} // 0;
+my $HUB_URL = '';
+
+# Parse command line arguments
+sub parse_args {
+    for my $i (0 .. $#ARGV) {
+        if ($ARGV[$i] eq '--hub-url' && $i + 1 < @ARGV) {
+            $HUB_URL = $ARGV[$i + 1];
+            $HUB_URL =~ s/\/$//;  # strip trailing slash
+        }
+    }
+    # Fallback to env
+    if (!$HUB_URL && $ENV{AI_HUB_SERVER_URL}) {
+        $HUB_URL = $ENV{AI_HUB_SERVER_URL};
+        $HUB_URL =~ s/\/$//;
+    }
+}
+parse_args();
 
 sub log_message {
     my ($level, $message) = @_;
@@ -264,7 +281,7 @@ sub tool_generate {
         unless $name =~ /^[a-zA-Z_][\w:]*$/;
 
     # Prevent overwriting built-in tools
-    my @builtin = qw(tool_generate tool_list tool_export tool_import tool_remove);
+    my @builtin = qw(tool_generate tool_list tool_export tool_import tool_remove hub_publish hub_search hub_pull hub_list);
     die "Cannot overwrite built-in tool '$name'." if grep { $_ eq $name } @builtin;
 
     # Compile the code in Safe sandbox
@@ -492,6 +509,140 @@ sub execute_generated_tool {
 }
 
 # ---------------------------------------------------------------------------
+# Hub HTTP helpers — communicate with Hub Server via REST API
+# ---------------------------------------------------------------------------
+
+sub hub_http_get {
+    my ($path) = @_;
+    return _safe_http_get("$HUB_URL$path");
+}
+
+sub hub_http_post {
+    my ($path, $data) = @_;
+    my $body = $json->encode($data);
+    my ($content, $status);
+    if (open(my $fh, '-|:utf8', 'curl', '-sS', '--max-time', '10',
+             '-X', 'POST', '-H', 'Content-Type: application/json',
+             '-d', $body, '-o', '-', '-w', "\n%{http_code}\n",
+             "$HUB_URL$path")) {
+        local $/;
+        my $all = <$fh>;
+        close $fh;
+        my @parts = split /\n/, $all;
+        my $http_code = pop @parts;
+        $content = join("\n", @parts);
+        $status  = $http_code + 0;
+    } else {
+        $content = '';
+        $status  = 0;
+    }
+    return {
+        success => ($status >= 200 && $status < 300) ? 1 : 0,
+        status  => $status,
+        reason  => $status >= 200 && $status < 300 ? 'OK' : 'curl error',
+        content => $content,
+    };
+}
+
+sub hub_is_connected {
+    return $HUB_URL ne '' ? 1 : 0;
+}
+
+# Check hub connectivity at startup
+sub hub_check {
+    return unless hub_is_connected();
+    my $resp = hub_http_get('/tools?prefix=');
+    if ($resp->{success}) {
+        log_message("INFO", "Connected to Hub Server at $HUB_URL");
+    } else {
+        log_message("WARN", "Cannot connect to Hub Server at $HUB_URL (status=$resp->{status}) — hub tools will return errors");
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Hub built-in tools
+# ---------------------------------------------------------------------------
+
+# hub_publish: Publish a local tool to the Hub Server
+sub hub_publish {
+    my ($args) = @_;
+    defined $HUB_URL && $HUB_URL ne '' or die "Hub Server not configured. Use --hub-url <URL> or set AI_HUB_SERVER_URL env var.";
+
+    my $name = $args->{name} or die "Missing required parameter: 'name'";
+    exists $tool_registry{$name} or die "Tool '$name' not found in local registry.";
+
+    # Export tool definition
+    my $export = tool_export({ name => $name });
+    my $definition = $export->{data};
+
+    # POST to hub
+    my $resp = hub_http_post('/tools', $definition);
+    $resp->{success} or die "Hub publish failed: $resp->{reason} (HTTP $resp->{status})";
+
+    log_message("INFO", "Published tool '$name' to Hub at $HUB_URL");
+    return { status => "success", data => "Tool '$name' published to Hub." };
+}
+
+# hub_search: Semantic search for tools on the Hub
+sub hub_search {
+    my ($args) = @_;
+    defined $HUB_URL && $HUB_URL ne '' or die "Hub Server not configured. Use --hub-url <URL> or set AI_HUB_SERVER_URL env var.";
+
+    my $query = $args->{query} or die "Missing required parameter: 'query'";
+    my $limit = $args->{limit} // 10;
+
+    my $path = "/search?q=" . uri_esc($query) . "&limit=$limit";
+    my $resp = hub_http_get($path);
+    $resp->{success} or die "Hub search failed: $resp->{reason} (HTTP $resp->{status})";
+
+    my $results = $json->decode($resp->{content});
+    log_message("INFO", "Hub search for '$query': " . scalar(@$results) . " results");
+    return { status => "success", data => $results };
+}
+
+# hub_pull: Download a tool from Hub and install locally
+sub hub_pull {
+    my ($args) = @_;
+    defined $HUB_URL && $HUB_URL ne '' or die "Hub Server not configured. Use --hub-url <URL> or set AI_HUB_SERVER_URL env var.";
+
+    my $name = $args->{name} or die "Missing required parameter: 'name'";
+
+    my $path = "/tools/" . uri_esc($name);
+    my $resp = hub_http_get($path);
+    $resp->{success} or die "Hub pull failed: $resp->{reason} (HTTP $resp->{status})";
+
+    my $definition = $resp->{content};
+
+    # Import locally
+    my $result = tool_import({ definition => $definition });
+    log_message("INFO", "Pulled tool '$name' from Hub at $HUB_URL");
+    return { status => "success", data => "Tool '$name' pulled from Hub and installed." };
+}
+
+# hub_list: List tools available on the Hub
+sub hub_list {
+    my ($args) = @_;
+    defined $HUB_URL && $HUB_URL ne '' or die "Hub Server not configured. Use --hub-url <URL> or set AI_HUB_SERVER_URL env var.";
+
+    my $prefix = $args->{prefix} // '';
+
+    my $path = "/tools?prefix=" . uri_esc($prefix);
+    my $resp = hub_http_get($path);
+    $resp->{success} or die "Hub list failed: $resp->{reason} (HTTP $resp->{status})";
+
+    my $tools = $json->decode($resp->{content});
+    log_message("INFO", "Hub list: " . scalar(@$tools) . " tools");
+    return { status => "success", data => $tools };
+}
+
+# URI escape helper
+sub uri_esc {
+    my ($s) = @_;
+    $s =~ s/([^a-zA-Z0-9_.~-])/sprintf('%%%02X', ord($1))/ge;
+    return $s;
+}
+
+# ---------------------------------------------------------------------------
 # Main dispatcher for built-in tools
 # ---------------------------------------------------------------------------
 sub execute_builtin {
@@ -511,6 +662,18 @@ sub execute_builtin {
     }
     elsif ($name eq 'tool_remove') {
         return tool_remove($args);
+    }
+    elsif ($name eq 'hub_publish') {
+        return hub_publish($args);
+    }
+    elsif ($name eq 'hub_search') {
+        return hub_search($args);
+    }
+    elsif ($name eq 'hub_pull') {
+        return hub_pull($args);
+    }
+    elsif ($name eq 'hub_list') {
+        return hub_list($args);
     }
 
     die "Unknown built-in tool: '$name'";
@@ -608,6 +771,65 @@ sub get_all_tool_definitions {
             required => ["name"],
         },
     };
+    push @tools, {
+        name        => "hub_publish",
+        description => "Publish a local generated tool to the Hub Server for sharing with other MCP instances.",
+        inputSchema => {
+            type => "object",
+            properties => {
+                name => {
+                    type => "string",
+                    description => "Name of the local tool to publish.",
+                },
+            },
+            required => ["name"],
+        },
+    };
+    push @tools, {
+        name        => "hub_search",
+        description => "Semantic search for tools on the Hub Server.",
+        inputSchema => {
+            type => "object",
+            properties => {
+                query => {
+                    type => "string",
+                    description => "Search query (natural language).",
+                },
+                limit => {
+                    type => "number",
+                    description => "Maximum number of results (default: 10).",
+                },
+            },
+            required => ["query"],
+        },
+    };
+    push @tools, {
+        name        => "hub_pull",
+        description => "Download a tool from the Hub Server and install it locally.",
+        inputSchema => {
+            type => "object",
+            properties => {
+                name => {
+                    type => "string",
+                    description => "Name of the tool to pull from Hub.",
+                },
+            },
+            required => ["name"],
+        },
+    };
+    push @tools, {
+        name        => "hub_list",
+        description => "List tools available on the Hub Server.",
+        inputSchema => {
+            type => "object",
+            properties => {
+                prefix => {
+                    type => "string",
+                    description => "Optional prefix to filter tool names.",
+                },
+            },
+        },
+    };
 
     # Generated tools
     for my $name (sort keys %tool_registry) {
@@ -630,6 +852,9 @@ log_message("INFO", "generative-mcp-hub server started");
 
 # Load persisted tools from disk
 load_tools();
+
+# Check hub connectivity
+hub_check();
 
 # Notify the client that we are ready
 send_notification("initialized");
@@ -684,7 +909,7 @@ LINE: while (my $line = <STDIN>) {
 
         eval {
             my $result;
-            my @builtin = qw(tool_generate tool_list tool_export tool_import tool_remove);
+            my @builtin = qw(tool_generate tool_list tool_export tool_import tool_remove hub_publish hub_search hub_pull hub_list);
             if (grep { $_ eq $tool_name } @builtin) {
                 $result = execute_builtin($tool_name, $tool_args);
             }
