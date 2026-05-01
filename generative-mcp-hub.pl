@@ -104,7 +104,10 @@ sub send_notification {
 # Pre-create a JSON::PP decoder object — created before any sandbox exists.
 # This is a blessed reference, not a class method call, so it survives
 # the @JSON::ISA corruption that Safe sandbox causes.
-my $json_pp_decoder = JSON::PP->new->allow_nonref;
+# NOTE: must be a package global (not my) so _safe_http_get_json can see it
+# when called from inside the Safe sandbox, since Safe only shares sub names,
+# not lexical variables.
+our $json_pp_decoder = JSON::PP->new->allow_nonref;
 
 # ---------------------------------------------------------------------------
 # Shared HTTP GET functions for Safe sandbox
@@ -120,20 +123,25 @@ sub _safe_http_get {
     my ($url) = @_;
     print STDERR "[_safe_http_get] URL=$url\n";
     my ($content, $status, $http_code);
-    if (open(my $fh, '-|:utf8', 'curl', '-sS', '--max-time', '10',
-             '-o', '-', '-w', "\n%{http_code}\n", $url)) {
-        local $/;
-        my $all = <$fh>;
-        close $fh;
-        my @parts = split /\n/, $all;
-        $http_code = pop @parts;
-        $content   = join("\n", @parts);
+    # Use a temp file for raw bytes (avoids Perl IO layer UTF-8 corruption),
+    # and backticks to capture curl's -w http_code output on stdout.
+    my $tmpfile = "/tmp/ai_hub_curl_$$.bin";
+    my $http_code_str = `curl -sS --max-time 10 -o "$tmpfile" -w "%{http_code}" "$url" 2>/dev/null`;
+    if (defined $http_code_str && length($http_code_str) > 0 && $http_code_str =~ /^\d+$/) {
+        $http_code = $http_code_str;
         $status    = $http_code + 0;
+        open(my $fh, '<:raw', $tmpfile) or die "Cannot read tmpfile: $!";
+        local $/;
+        $content = <$fh>;
+        close $fh;
+        unlink $tmpfile;
+        utf8::decode($content);
         print STDERR "[_safe_http_get] status=$status content_len=" . length($content) . " http_code=$http_code\n";
     } else {
-        print STDERR "[_safe_http_get] open failed: $!\n";
+        print STDERR "[_safe_http_get] curl failed or no http_code: '$http_code_str'\n";
         $content = '';
         $status  = 0;
+        unlink $tmpfile if -f $tmpfile;
     }
     return {
         success => ($status >= 200 && $status < 300) ? 1 : 0,
@@ -143,15 +151,49 @@ sub _safe_http_get {
     };
 }
 
+# URI-escape a UTF-8 string by percent-encoding non-ASCII bytes.
+# Uses simple regex without external modules — safe for sandbox usage.
+sub _uri_escape_utf8 {
+    my ($str) = @_;
+    # Split into individual characters, convert each to UTF-8 bytes,
+    # then percent-encode each byte. Use pack with U0C* for UTF-8 byte seq.
+    my $escaped = '';
+    for my $ch (split //, $str) {
+        my $ord = ord($ch);
+        if ($ord < 0x80) {
+            # ASCII — percent-encode if not unreserved
+            if ($ch =~ /^[a-zA-Z0-9_.~-]$/) {
+                $escaped .= $ch;
+            } else {
+                $escaped .= sprintf('%%%02X', $ord);
+            }
+        } else {
+            # Multi-byte UTF-8 — pack as UTF-8 byte sequence
+            my $bytes;
+            if ($ord < 0x800) {
+                $bytes = pack('C2', (0xC0 | ($ord >> 6)), (0x80 | ($ord & 0x3F)));
+            } elsif ($ord < 0x10000) {
+                $bytes = pack('C3', (0xE0 | ($ord >> 12)), (0x80 | (($ord >> 6) & 0x3F)), (0x80 | ($ord & 0x3F)));
+            } else {
+                $bytes = pack('C4', (0xF0 | ($ord >> 18)), (0x80 | (($ord >> 12) & 0x3F)), (0x80 | (($ord >> 6) & 0x3F)), (0x80 | ($ord & 0x3F)));
+            }
+            $escaped .= join('', map { sprintf('%%%02X', $_) } unpack('C*', $bytes));
+        }
+    }
+    return $escaped;
+}
+
 sub _safe_http_get_json {
     my ($url) = @_;
     print STDERR "[_safe_http_get_json] URL=$url\n";
     my $raw = _safe_http_get($url);
     return $raw unless $raw->{success};
-    # Use the pre-created JSON::PP decoder object (blessed before any sandbox
-    # existed). An object METHOD call survives @JSON::ISA corruption that
-    # Safe sandbox's reval causes on the JSON package.
-    my $data = eval { $json_pp_decoder->decode($raw->{content}) };
+    # Use the pre-created $main::json_pp_decoder blessed reference.
+    # Method call on a blessed reference does NOT go through @ISA,
+    # so Safe sandbox @JSON::PP::ISA corruption does not affect it.
+    # $main::json_pp_decoder is 'our' variable, visible from main::
+    # even when _safe_http_get_json is called from inside Safe sandbox.
+    my $data = eval { $main::json_pp_decoder->decode($raw->{content}) };
     if ($@) {
         print STDERR "[_safe_http_get_json] JSON decode error: $@\n";
         return { success => 0, status => $raw->{status}, reason => "JSON decode error: $@" };
@@ -227,6 +269,7 @@ my %safe_modules = (
     'Cwd'          => 1,
     'Time::Piece'  => 1,
     'JSON::PP'     => 1,
+    'Encode'       => 1,
 );
 
 # ---------------------------------------------------------------------------
@@ -253,10 +296,10 @@ sub compile_in_safe {
     # Strip 'use' statements from the actual code (already loaded)
     $code_copy =~ s/^\s*use\s+[\w:]+\s*;//gm;
 
-    # Share HTTP functions.
+    # Share HTTP functions and URI escape helper.
     # _safe_http_get_json does JSON::PP::decode_json HERE in main:: namespace,
     # not inside the sandbox — so JSON::PP doesn't need to be shared.
-    $safe->share(qw(&_safe_http_get &_safe_http_get_json));
+    $safe->share(qw(&_safe_http_get &_safe_http_get_json &_uri_escape_utf8));
 
     # Compile the tool function
     my $compiled = $safe->reval("sub { my \$args = shift; $code_copy }");
@@ -494,11 +537,79 @@ sub execute_generated_tool {
 
     my $compiled = $tool->{compiled};
 
-    # Execute in sandbox
+    # Execute in sandbox (Safe sandbox corrupts UTF-8 in the return value)
     my $result = eval { $compiled->($args) };
     if ($@) {
         log_message("ERROR", "Runtime error in tool '$name': $@");
         return { status => "error", data => "Runtime error: $@" };
+    }
+
+    # If the tool returned _raw_b64, decode base64 OUTSIDE sandbox
+    # (base64 is ASCII-safe and survives sandbox UTF-8 corruption),
+    # then decode JSON from the recovered bytes.
+    my $raw_decode_result;
+    if (defined $result && ref $result eq 'HASH' && exists $result->{_raw_b64}) {
+        require MIME::Base64;
+        my $b64 = delete $result->{_raw_b64};
+        my $original_text = delete $result->{_original_text};
+        my $src = delete $result->{_source};
+        my $tgt = delete $result->{_target};
+        my $url = delete $result->{_url};
+        # Decode base64 (get raw bytes), convert to Perl UTF-8
+        my $raw = MIME::Base64::decode_base64($b64);
+        utf8::decode($raw);
+        my $decoded = eval { $json_pp_decoder->decode($raw) };
+        if ($decoded && ref $decoded eq 'HASH') {
+            my $translated = $decoded->{responseData}{translatedText} // '';
+            my $detected   = $decoded->{responseData}{detectedLanguage} // $src;
+            my $match      = ($decoded->{responseData}{match} // 0) + 0;
+            $raw_decode_result = {
+                original_text   => $original_text,
+                translated_text => $translated,
+                source_lang     => $detected,
+                target_lang     => $tgt,
+                match_quality   => $match,
+                _decoded_outside_sandbox => 1,
+            };
+        } else {
+            $raw_decode_result = {
+                original_text   => $original_text,
+                source_lang     => $src,
+                target_lang     => $tgt,
+                _decode_error   => $@ // 'unknown',
+                _url            => $url,
+            };
+        }
+        # Replace result with decoded data for UTF-8 fixing
+        $result = $raw_decode_result;
+    }
+
+    # Fix UTF-8 corruption: Safe sandbox strips the UTF-8 flag from strings.
+    require Encode;
+    my $fix_utf8;
+    $fix_utf8 = sub {
+        my ($val) = @_;
+        if (ref $val eq 'HASH') {
+            my %fixed;
+            for my $k (keys %$val) {
+                $fixed{$fix_utf8->($k)} = $fix_utf8->($val->{$k});
+            }
+            return \%fixed;
+        } elsif (ref $val eq 'ARRAY') {
+            return [ map { $fix_utf8->($_) } @$val ];
+        } elsif (!ref $val && defined $val && length($val) > 0) {
+            if ($val =~ /[\x80-\xFF]/ && !Encode::is_utf8($val)) {
+                eval {
+                    my $bytes = Encode::encode('latin1', $val);
+                    $val = Encode::decode('utf-8', $bytes);
+                };
+            }
+            return $val;
+        }
+        return $val;
+    };
+    if (defined $result && ref $result) {
+        $result = $fix_utf8->($result);
     }
 
     # Debug: log result type and content
@@ -521,13 +632,14 @@ sub hub_http_post {
     my ($path, $data) = @_;
     my $body = $json->encode($data);
     my ($content, $status);
-    if (open(my $fh, '-|:utf8', 'curl', '-sS', '--max-time', '10',
+    if (open(my $fh, '-|', 'curl', '-sS', '--max-time', '10',
              '-X', 'POST', '-H', 'Content-Type: application/json',
              '-d', $body, '-o', '-', '-w', "\n%{http_code}\n",
              "$HUB_URL$path")) {
         local $/;
         my $all = <$fh>;
         close $fh;
+        utf8::decode($all);
         my @parts = split /\n/, $all;
         my $http_code = pop @parts;
         $content = join("\n", @parts);
