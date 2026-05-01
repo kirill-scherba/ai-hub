@@ -263,6 +263,30 @@ sub load_tools {
     log_message("INFO", "Loaded $loaded tools from $TOOLS_FILE");
 }
 
+sub _safe_curl_get_http_code {
+    my ($url, $timeout) = @_;
+    $timeout //= 10;
+    my $code = `curl -o /dev/null -s -w '%{http_code}' --connect-timeout 5 --max-time $timeout '$url' 2>/dev/null`;
+    $code = '' unless defined $code;
+    chomp $code;
+    $code =~ s/\s+//g;
+    return $code;
+}
+
+sub _safe_curl_get_code_and_time {
+    my ($url, $timeout) = @_;
+    $timeout //= 15;
+    my $out = `curl -o /dev/null -s -w '%{http_code}:%{time_total}' --connect-timeout 10 --max-time $timeout '$url' 2>/dev/null`;
+    return $out // '';
+}
+
+sub _safe_curl_verbose {
+    my ($url, $timeout) = @_;
+    $timeout //= 15;
+    my $out = `curl -o /dev/null -s -v --connect-timeout 10 --max-time $timeout '$url' 2>&1`;
+    return $out // '';
+}
+
 # Safe-whitelisted modules
 my %safe_modules = (
     'MIME::Base64' => 1,
@@ -302,7 +326,7 @@ sub compile_in_safe {
     # Share HTTP functions and URI escape helper.
     # _safe_http_get_json does JSON::PP::decode_json HERE in main:: namespace,
     # not inside the sandbox — so JSON::PP doesn't need to be shared.
-    $safe->share(qw(&_safe_http_get &_safe_http_get_json &_uri_escape_utf8));
+    $safe->share(qw(&_safe_http_get &_safe_http_get_json &_uri_escape_utf8 &_safe_curl_get_http_code &_safe_curl_get_code_and_time &_safe_curl_verbose));
 
     # Permit ops needed by generated tools
     $safe->permit(qw(time rand srand));
