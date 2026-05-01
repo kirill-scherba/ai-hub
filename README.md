@@ -71,9 +71,9 @@ docker compose up --build
 
 ### MCP Client Configuration
 
-Configure in your MCP client (Cline, Claude Desktop, etc.):
+AI Hub communicates via **stdio** — the standard MCP transport. Configure your MCP client to launch the hub as a subprocess.
 
-For **Perl directly**:
+**Direct stdio connection** (Perl process spawned by the client):
 
 ```json
 {
@@ -86,7 +86,9 @@ For **Perl directly**:
 }
 ```
 
-For **Docker** (stdio via Docker):
+This is the cleanest mode — no wrappers, no containers, just the Perl process talking stdio with your AI assistant.
+
+**Containerized stdio** (via Docker):
 
 ```json
 {
