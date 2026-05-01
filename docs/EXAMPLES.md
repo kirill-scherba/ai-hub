@@ -212,12 +212,16 @@ my $c = $args->{code} // "";
 return { error => "Code required" } unless $c;
 my $d = $args->{detail} // "normal";
 
-# Language detection
+# Language detection (30+ languages)
 my %langs = (
-  sub     => "Perl",    lambda  => "Python",   function => "JavaScript",
-  def     => "Python",  func    => "Go",        fn       => "Rust",
-  int     => "C/Java",  var     => "JS/Go",     const    => "JS/TS",
-  println => "Go/Rust", printf  => "C",         echo     => "PHP/Bash",
+  sub     => "Perl",      lambda  => "Python",       function => "JavaScript",
+  def     => "Python",    func    => "Go",            fn       => "Rust",
+  class   => "OOP",       import  => "Python/JS",     include  => "C/C++/PHP",
+  package => "Go/Java",   module  => "Ruby/Python",   use      => "Perl",
+  int     => "C/Java",    string  => "Go/C++",        var      => "JS/Go",
+  let     => "JS/TS",     const   => "JS/TS",         println  => "Go/Rust",
+  printf  => "C",         console => "JS",            echo     => "PHP/Bash",
+  System  => "Java/C#",   fmt     => "Go",            print    => "Python",
 );
 my $lang = "Unknown";
 for my $k (keys %langs) {
@@ -226,9 +230,12 @@ for my $k (keys %langs) {
 
 # Complexity analysis
 my $lines    = scalar(split(/\n/, $c));
-my $loops    = scalar(grep { /\b(for|while|foreach)\s*\(/ } split(/\n/, $c));
-my $conds    = scalar(grep { /\b(if|unless|switch|case)\b/ } split(/\n/, $c));
-my $funcs    = scalar(grep { /\b(function|def|sub|func|fn)\s+\w+\s*\(/ } split(/\n/, $c));
+my $blank    = scalar(grep { /^\s*$/ } split(/\n/, $c));
+my $comments = scalar(grep { /\/\/|#|--|%|<!--|\/\*/ } split(/\n/, $c));
+my $loops    = scalar(grep { /\b(for|while|foreach|map|grep)\s*\(/ } split(/\n/, $c));
+my $conds    = scalar(grep { /\b(if|unless|switch|case|when)\b/ } split(/\n/, $c));
+my $funcs    = scalar(grep { /\b(function|def|sub|func|fn|void|int|string)\s+\w+\s*\(/ }
+                    split(/\n/, $c));
 
 my $complexity = "Simple";
 $complexity = "Moderate" if ($loops > 1 || $conds > 2);
@@ -236,23 +243,113 @@ $complexity = "Complex"  if ($loops > 3 || $conds > 5 || $funcs > 3);
 
 # Bug detection
 my @bugs;
-push @bugs, "Possible SQL injection" if $c =~ /SELECT.*\$/i;
-push @bugs, "Hardcoded credentials" if $c =~ /(password|secret|api_key)\s*[=:]\s*["'](?!\*)/i;
+push @bugs, "Possible SQL injection"
+  if $c =~ /SELECT.*\$|query\s*=.*\.\s*\$|concat\(.*\$.*;|\.join\(/i;
+push @bugs, "Unsafe eval usage"
+  if $c =~ /\beval\s*\(/;
+push @bugs, "Hardcoded credentials"
+  if $c =~ /(password|secret|api_key|token)\s*[=:]\s*["'](?!\*)/i;
+push @bugs, "Missing input validation"
+  if $c =~ /\bread\(|<\$.*>|param|req\./i && $c !~ /valid|sanitize|escape/i;
+
+# Explanation
+my $explain = "";
+if ($d ne "brief") {
+  $explain  = "This $lang code has $lines lines ($blank blank, $comments comments). ";
+  $explain .= "It defines $funcs function(s), uses $loops loop(s) and $conds conditional(s). ";
+  $explain .= "Complexity: $complexity.";
+  if (@bugs) { $explain .= " Potential issues: " . join("; ", @bugs) . "." }
+}
 
 return {
-  language        => $lang,
-  lines           => $lines,
-  complexity      => $complexity,
-  potential_bugs  => \@bugs,
-  explanation     => "This $lang code has $lines lines. Complexity: $complexity.",
+  language       => $lang,       lines         => $lines,
+  blank_lines    => $blank,      comments      => $comments,
+  functions      => $funcs,      loops         => $loops,
+  conditionals   => $conds,      complexity    => $complexity,
+  potential_bugs => \@bugs,      explanation   => $explain,
 };
 ```
 
 ### Usage
 
 ```
-Input:  { "code": "def hello(name):\n    print(f'Hello, {name}')\n    return True" }
-Output: { "language": "Python", "lines": 3, "complexity": "Simple" }
+Input:  { "code": "def hello(name):\n    print(f'Hello, {name}')\n    return True",
+          "detail": "detailed" }
+Output: { "language": "Python", "lines": 3, "complexity": "Simple",
+          "potential_bugs": [], "explanation": "This Python code has 3 lines..." }
+```
+
+---
+
+## 5. prompt_enhance — Enhance a Raw User Prompt
+
+Takes a raw user prompt and transforms it into a well-structured prompt with role, tone, format, and constraints.
+
+### Schema
+
+```json
+{
+  "name": "prompt_enhance",
+  "description": "Enhance a raw user prompt into a well-structured prompt",
+  "inputSchema": {
+    "type": "object",
+    "required": ["prompt"],
+    "properties": {
+      "prompt":   { "type": "string", "description": "The raw user prompt to enhance" },
+      "tone":     { "type": "string", "description": "Tone: professional, casual, academic, creative" },
+      "language": { "type": "string", "description": "Output language: en, ru" },
+      "role":     { "type": "string", "description": "Optional role for the AI" }
+    }
+  }
+}
+```
+
+### Perl Code
+
+```perl
+my $p = $args->{prompt} // "";
+return { error => "Prompt required" } unless $p;
+my $r = $args->{role}   // "helpful assistant";
+my $t = $args->{tone}   // "professional";
+my $l = $args->{language} // "en";
+
+# Tone definitions
+my %tones = (
+  professional => "Be precise and well-structured.",
+  casual       => "Be friendly and conversational.",
+  academic     => "Be formal and scholarly.",
+  creative     => "Be imaginative and vivid.",
+);
+my $ti = $tones{$t} // $tones{professional};
+
+# Build enhanced prompt with markdown structure
+my $newline   = qq{\n};
+my $enhanced  = qq{## Role${newline}You are $r.$newline${newline}};
+$enhanced    .= qq{## Tone${newline}$ti$newline${newline}};
+$enhanced    .= qq{## Task$newline$p$newline${newline}};
+$enhanced    .= qq{## Format$newline- Clear structure with headings.};
+$enhanced    .= qq{$newline- Ask if unclear.$newline${newline}};
+$enhanced    .= qq{## Constraints$newline- No apologies.};
+$enhanced    .= qq{$newline- No legal/medical advice.};
+
+return {
+  original      => $p,
+  enhanced      => $enhanced,
+  role          => $r,
+  tone          => $t,
+  language      => $l,
+  token_estimate => int(length($enhanced) / 4) + 1,
+};
+```
+
+### Usage
+
+```
+Input:  { "prompt": "Write a poem about coding",
+          "tone": "creative", "role": "poet" }
+Output: { "original": "Write a poem about coding",
+          "enhanced": "## Role\nYou are poet.\n\n## Tone\nBe imaginative...",
+          "token_estimate": 40 }
 ```
 
 ---

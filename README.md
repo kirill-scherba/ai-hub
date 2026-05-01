@@ -2,6 +2,12 @@
 
 **Let AI generate new MCP tools at runtime — in a Safe sandbox.**
 
+[![Test](https://github.com/kirill-scherba/ai-hub/actions/workflows/test.yml/badge.svg)](https://github.com/kirill-scherba/ai-hub/actions/workflows/test.yml)
+[![Docker](https://img.shields.io/badge/docker-hub-blue?logo=docker)](https://github.com/kirill-scherba/ai-hub/pkgs/container/ai-hub)
+[![Go](https://img.shields.io/badge/go-1.23-blue?logo=go)](https://go.dev/)
+[![Perl](https://img.shields.io/badge/perl-5.36+-blue?logo=perl)](https://www.perl.org/)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 A unique MCP server that lets AI assistants create, execute, export, import, and share new MCP tools **dynamically**, using Perl's built-in [Safe](https://metacpan.org/pod/Safe) sandbox (since 1994, no external dependencies).
 
 ## Why?
