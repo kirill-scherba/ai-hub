@@ -28,10 +28,12 @@ Existing MCP tool marketplaces are static: humans write tools, submit them, and 
 3. `tool_export` — export a generated tool as JSON
 4. `tool_import` — import a tool from JSON
 5. `tool_remove` — remove a generated tool
+6. `weather` — current weather for any city (supports Cyrillic)
+7. `exchange_rate` — currency exchange rates (any ISO 4217 pair)
 
 ## Origin
 
 - **Date:** 2026-04-30
 - **Inspiration:** db-tool-mcp (github.com/kirill-scherba/db-tool-mcp)
-- **User:** Кирилл (Kirill) — Ваше Величество
-- **AI:** Барон (Cline incarnation)
+- **User:** Kirill — Your Majesty
+- **AI:** Baron (Cline incarnation)

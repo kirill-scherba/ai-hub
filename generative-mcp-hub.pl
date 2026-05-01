@@ -28,6 +28,7 @@ use strict;
 use warnings;
 use utf8;
 use JSON;
+use JSON::PP;
 use Safe;
 use POSIX qw(strftime);
 
@@ -36,6 +37,7 @@ use English '-no_match_vars';
 # ---------------------------------------------------------------------------
 # UTF-8 encoding
 # ---------------------------------------------------------------------------
+binmode(STDIN,  ":utf8");
 binmode(STDOUT, ":utf8");
 binmode(STDERR, ":utf8");
 
@@ -55,7 +57,7 @@ sub log_message {
 # ---------------------------------------------------------------------------
 # JSON-RPC helpers
 # ---------------------------------------------------------------------------
-my $json = JSON->new->utf8->allow_nonref;
+my $json = JSON->new->allow_nonref;
 
 sub respond {
     my ($id, $result) = @_;
@@ -82,20 +84,132 @@ sub send_notification {
     log_message("INFO", "Notification: $method");
 }
 
+# Pre-create a JSON::PP decoder object — created before any sandbox exists.
+# This is a blessed reference, not a class method call, so it survives
+# the @JSON::ISA corruption that Safe sandbox causes.
+my $json_pp_decoder = JSON::PP->new->allow_nonref;
+
 # ---------------------------------------------------------------------------
+# Shared HTTP GET functions for Safe sandbox
+#
+# _safe_http_get:  raw HTTP GET, returns { success, status, content }
+# _safe_http_get_json: HTTP GET + JSON decode, returns { success, status, data }
+#
+# JSON decoding happens HERE in main:: namespace where JSON::PP works.
+# The sandbox code just calls _safe_http_get_json and gets a Perl hashref.
+# ---------------------------------------------------------------------------
+
+sub _safe_http_get {
+    my ($url) = @_;
+    print STDERR "[_safe_http_get] URL=$url\n";
+    my ($content, $status, $http_code);
+    if (open(my $fh, '-|:utf8', 'curl', '-sS', '--max-time', '10',
+             '-o', '-', '-w', "\n%{http_code}\n", $url)) {
+        local $/;
+        my $all = <$fh>;
+        close $fh;
+        my @parts = split /\n/, $all;
+        $http_code = pop @parts;
+        $content   = join("\n", @parts);
+        $status    = $http_code + 0;
+        print STDERR "[_safe_http_get] status=$status content_len=" . length($content) . " http_code=$http_code\n";
+    } else {
+        print STDERR "[_safe_http_get] open failed: $!\n";
+        $content = '';
+        $status  = 0;
+    }
+    return {
+        success => ($status >= 200 && $status < 300) ? 1 : 0,
+        status  => $status,
+        reason  => $status >= 200 && $status < 300 ? 'OK' : 'curl error',
+        content => $content,
+    };
+}
+
+sub _safe_http_get_json {
+    my ($url) = @_;
+    print STDERR "[_safe_http_get_json] URL=$url\n";
+    my $raw = _safe_http_get($url);
+    return $raw unless $raw->{success};
+    # Use the pre-created JSON::PP decoder object (blessed before any sandbox
+    # existed). An object METHOD call survives @JSON::ISA corruption that
+    # Safe sandbox's reval causes on the JSON package.
+    my $data = eval { $json_pp_decoder->decode($raw->{content}) };
+    if ($@) {
+        print STDERR "[_safe_http_get_json] JSON decode error: $@\n";
+        return { success => 0, status => $raw->{status}, reason => "JSON decode error: $@" };
+    }
+    print STDERR "[_safe_http_get_json] decoded OK, type=" . ref($data) . "\n";
+    return { success => 1, status => $raw->{status}, data => $data };
+}
+
 # Tool registry — stores generated tools
-# ---------------------------------------------------------------------------
 my %tool_registry;  # name => { name, description, inputSchema, code, compiled, source }
 
-# Safe-whitelisted modules (same as db-tool-mcp, plus extras)
+# ---------------------------------------------------------------------------
+# Persistence — save/load generated tools to/from JSON file
+# ---------------------------------------------------------------------------
+use FindBin;
+my $TOOLS_FILE = "$FindBin::Bin/tools.json";
+
+sub save_tools {
+    my @tools;
+    for my $name (sort keys %tool_registry) {
+        my $t = $tool_registry{$name};
+        push @tools, {
+            name        => $t->{name},
+            description => $t->{description},
+            inputSchema => $t->{inputSchema},
+            code        => $t->{code},
+            source      => $t->{source},
+            created_at  => $t->{created_at},
+        };
+    }
+    my $content = eval { $json->pretty->encode(\@tools) };
+    return unless defined $content;
+    open(my $fh, '>:utf8', $TOOLS_FILE) or return;
+    print $fh $content;
+    close $fh;
+    log_message("INFO", "Saved " . scalar(@tools) . " tools to $TOOLS_FILE");
+}
+
+sub load_tools {
+    return unless -f $TOOLS_FILE;
+    open(my $fh, '<:utf8', $TOOLS_FILE) or return;
+    local $/;
+    my $content = <$fh>;
+    close $fh;
+    my $tools = eval { $json->decode($content) };
+    return unless ref $tools eq 'ARRAY';
+    my $loaded = 0;
+    for my $t (@$tools) {
+        next unless $t->{name} && $t->{code};
+        eval {
+            my $compiled = compile_in_safe($t->{code});
+            $tool_registry{$t->{name}} = {
+                name        => $t->{name},
+                description => $t->{description} // "Imported tool",
+                inputSchema => $t->{inputSchema} // { type => "object", properties => {} },
+                code        => $t->{code},
+                compiled    => $compiled,
+                source      => $t->{source} // "persisted",
+                created_at  => $t->{created_at} // strftime("%Y-%m-%d %H:%M:%S", localtime),
+            };
+            $loaded++;
+        };
+    }
+    log_message("INFO", "Loaded $loaded tools from $TOOLS_FILE");
+}
+
+# Safe-whitelisted modules
 my %safe_modules = (
     'MIME::Base64' => 1,
     'Digest::MD5'  => 1,
     'URI::Escape'  => 1,
-    'JSON'         => 1,
     'Scalar::Util' => 1,
     'Cwd'          => 1,
     'Time::Piece'  => 1,
+    'JSON::PP'     => 1,
 );
 
 # ---------------------------------------------------------------------------
@@ -106,7 +220,7 @@ sub compile_in_safe {
 
     my $safe = Safe->new();
 
-    # Load and share whitelisted modules
+    # Load and share whitelisted modules (those with 'use' in the code)
     my $code_copy = $code;
     while ($code_copy =~ s/^\s*use\s+([\w::]+)\s*;//m) {
         my $module_name = $1;
@@ -122,8 +236,12 @@ sub compile_in_safe {
     # Strip 'use' statements from the actual code (already loaded)
     $code_copy =~ s/^\s*use\s+[\w:]+\s*;//gm;
 
+    # Share HTTP functions.
+    # _safe_http_get_json does JSON::PP::decode_json HERE in main:: namespace,
+    # not inside the sandbox — so JSON::PP doesn't need to be shared.
+    $safe->share(qw(&_safe_http_get &_safe_http_get_json));
+
     # Compile the tool function
-    # The generated code receives $args (hashref) and must return a hashref
     my $compiled = $safe->reval("sub { my \$args = shift; $code_copy }");
     die "Perl Compile Error: $@" if $@;
 
@@ -146,7 +264,7 @@ sub tool_generate {
         unless $name =~ /^[a-zA-Z_][\w:]*$/;
 
     # Prevent overwriting built-in tools
-    my @builtin = qw(tool_generate tool_list tool_export tool_import tool_remove);
+    my @builtin = qw(tool_generate tool_list tool_export tool_import tool_remove weather exchange_rate);
     die "Cannot overwrite built-in tool '$name'." if grep { $_ eq $name } @builtin;
 
     # Compile the code in Safe sandbox
@@ -162,6 +280,9 @@ sub tool_generate {
         source      => $source,
         created_at  => strftime("%Y-%m-%d %H:%M:%S", localtime),
     };
+
+    # Save to persistent storage
+    save_tools();
 
     log_message("INFO", "Generated tool: $name");
     return { status => "success", data => "Tool '$name' generated and registered." };
@@ -338,6 +459,9 @@ sub tool_remove {
     die "Tool '$name' not found." unless exists $tool_registry{$name};
     delete $tool_registry{$name};
 
+    # Save to persistent storage after removal
+    save_tools();
+
     log_message("INFO", "Removed tool: $name");
     return { status => "success", data => "Tool '$name' removed." };
 }
@@ -360,8 +484,60 @@ sub execute_generated_tool {
         return { status => "error", data => "Runtime error: $@" };
     }
 
+    # Debug: log result type and content
+    log_message("DEBUG", "Sandbox result type=" . (defined($result) ? ref($result) : 'undef') . " content=" . (defined($result) ? $json->encode($result) : 'undef'));
+
     log_message("INFO", "Executed generated tool: $name");
     return { status => "success", data => $result };
+}
+
+# ---------------------------------------------------------------------------
+# Built-in tool: weather
+# ---------------------------------------------------------------------------
+sub tool_weather {
+    my ($args) = @_;
+    my $city = $args->{city} or die "Missing required parameter: 'city'";
+
+    my $r = _safe_http_get_json("https://wttr.in/$city?format=j1");
+    die "HTTP error: $r->{status} - $r->{reason}" unless $r->{success};
+
+    my $d = $r->{data};
+    return {
+        requested_city => $city,
+        city           => ($d->{nearest_area}[0]{areaName}[0]{value} // $city),
+        country        => ($d->{nearest_area}[0]{country}[0]{value} // "?"),
+        temp_C         => ($d->{current_condition}[0]{temp_C} // "?") + 0,
+        feels_like_C   => ($d->{current_condition}[0]{FeelsLikeC} // "?") + 0,
+        humidity       => ($d->{current_condition}[0]{humidity} // "?") + 0,
+        wind_speed_kmh => ($d->{current_condition}[0]{windspeedKmph} // "?") + 0,
+        wind_dir       => ($d->{current_condition}[0]{winddir16Point} // "?"),
+        desc           => ($d->{current_condition}[0]{weatherDesc}[0]{value} // "?"),
+        obs_time       => ($d->{current_condition}[0]{observation_time} // "?"),
+    };
+}
+
+# ---------------------------------------------------------------------------
+# Built-in tool: exchange_rate
+# ---------------------------------------------------------------------------
+sub tool_exchange_rate {
+    my ($args) = @_;
+    my $base   = $args->{base}   // 'USD';
+    my $target = $args->{target} // 'RUB';
+
+    my $r = _safe_http_get_json("https://api.exchangerate-api.com/v4/latest/$base");
+    die "HTTP error: $r->{status} - $r->{reason}" unless $r->{success};
+
+    my $d = $r->{data};
+    my $rate = $d->{rates}{$target};
+    die "Target currency '$target' not found." unless defined $rate;
+
+    return {
+        base       => $base,
+        target     => $target,
+        rate       => $rate + 0.0,
+        date       => $d->{date},
+        source     => "exchangerate-api.com",
+    };
 }
 
 # ---------------------------------------------------------------------------
@@ -384,6 +560,12 @@ sub execute_builtin {
     }
     elsif ($name eq 'tool_remove') {
         return tool_remove($args);
+    }
+    elsif ($name eq 'weather') {
+        return tool_weather($args);
+    }
+    elsif ($name eq 'exchange_rate') {
+        return tool_exchange_rate($args);
     }
 
     die "Unknown built-in tool: '$name'";
@@ -481,6 +663,37 @@ sub get_all_tool_definitions {
             required => ["name"],
         },
     };
+    push @tools, {
+        name        => "weather",
+        description => "Get current weather for any city. Returns temperature, humidity, wind, and description.",
+        inputSchema => {
+            type => "object",
+            properties => {
+                city => {
+                    type => "string",
+                    description => "City name (supports Cyrillic, e.g. Москва, Саратов)",
+                },
+            },
+            required => ["city"],
+        },
+    };
+    push @tools, {
+        name        => "exchange_rate",
+        description => "Get exchange rate between two currencies. Default: USD → RUB. Supports any ISO 4217 currency code.",
+        inputSchema => {
+            type => "object",
+            properties => {
+                base => {
+                    type => "string",
+                    description => "Base currency code (default: USD)",
+                },
+                target => {
+                    type => "string",
+                    description => "Target currency code (default: RUB)",
+                },
+            },
+        },
+    };
 
     # Generated tools
     for my $name (sort keys %tool_registry) {
@@ -500,6 +713,9 @@ sub get_all_tool_definitions {
 # ===========================================================================
 
 log_message("INFO", "generative-mcp-hub server started");
+
+# Load persisted tools from disk
+load_tools();
 
 # Notify the client that we are ready
 send_notification("initialized");
@@ -554,7 +770,7 @@ LINE: while (my $line = <STDIN>) {
 
         eval {
             my $result;
-            my @builtin = qw(tool_generate tool_list tool_export tool_import tool_remove);
+            my @builtin = qw(tool_generate tool_list tool_export tool_import tool_remove weather exchange_rate);
             if (grep { $_ eq $tool_name } @builtin) {
                 $result = execute_builtin($tool_name, $tool_args);
             }

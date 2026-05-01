@@ -2,7 +2,7 @@
 
 ## Architecture
 
-```
+```txt
 ┌─────────────────────────────┐
 │      MCP Client (AI)        │
 │  (Cline, Claude Desktop)    │
@@ -30,6 +30,8 @@
 │  │  │ tool_export      │  │  │
 │  │  │ tool_import      │  │  │
 │  │  │ tool_remove      │  │  │
+│  │  │ weather          │  │  │
+│  │  │ exchange_rate    │  │  │
 │  │  └─────────────────┘  │  │
 │  └───────┬───────────────┘  │
 │          │                   │
@@ -48,6 +50,7 @@
 ## Data Flow
 
 ### Tool Generation
+
 1. AI calls `tools/call` with `tool_generate`
 2. Hub receives name, schema, Perl code
 3. Code is parsed for `use Module;` statements
@@ -57,6 +60,7 @@
 7. Tool appears in subsequent `tools/list` calls
 
 ### Tool Execution
+
 1. AI calls `tools/call` with generated tool name
 2. Hub looks up tool in `%tool_registry`
 3. Compiled coderef is executed with `$args` hashref
@@ -66,6 +70,7 @@
 ## Security Model
 
 ### Safe Sandbox
+
 - **Module whitelist:** Only explicitly listed modules are allowed
   - `MIME::Base64`, `Digest::MD5`, `URI::Escape`, `JSON`, `Scalar::Util`, `Cwd`, `Time::Piece`
 - **No system calls:** `system()`, `exec()`, `qx()`, `open()` are blocked by default in Safe
@@ -82,7 +87,7 @@
 
 ## File Structure
 
-```
+```txt
 ai-hub/
 ├── generative-mcp-hub.pl   # Main MCP server (one file, zero build deps)
 ├── README.md               # Project overview and quick start
@@ -94,7 +99,6 @@ ai-hub/
 
 ## Future Ideas
 
-- File-based persistence for generated tools (JSON on disk)
 - More whitelisted Safe modules
 - Sandbox timeout via `alarm()` + `eval`
 - Tool code hash verification (prevent tampering)
