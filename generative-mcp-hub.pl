@@ -264,7 +264,7 @@ sub tool_generate {
         unless $name =~ /^[a-zA-Z_][\w:]*$/;
 
     # Prevent overwriting built-in tools
-    my @builtin = qw(tool_generate tool_list tool_export tool_import tool_remove weather exchange_rate);
+    my @builtin = qw(tool_generate tool_list tool_export tool_import tool_remove);
     die "Cannot overwrite built-in tool '$name'." if grep { $_ eq $name } @builtin;
 
     # Compile the code in Safe sandbox
@@ -492,55 +492,6 @@ sub execute_generated_tool {
 }
 
 # ---------------------------------------------------------------------------
-# Built-in tool: weather
-# ---------------------------------------------------------------------------
-sub tool_weather {
-    my ($args) = @_;
-    my $city = $args->{city} or die "Missing required parameter: 'city'";
-
-    my $r = _safe_http_get_json("https://wttr.in/$city?format=j1");
-    die "HTTP error: $r->{status} - $r->{reason}" unless $r->{success};
-
-    my $d = $r->{data};
-    return {
-        requested_city => $city,
-        city           => ($d->{nearest_area}[0]{areaName}[0]{value} // $city),
-        country        => ($d->{nearest_area}[0]{country}[0]{value} // "?"),
-        temp_C         => ($d->{current_condition}[0]{temp_C} // "?") + 0,
-        feels_like_C   => ($d->{current_condition}[0]{FeelsLikeC} // "?") + 0,
-        humidity       => ($d->{current_condition}[0]{humidity} // "?") + 0,
-        wind_speed_kmh => ($d->{current_condition}[0]{windspeedKmph} // "?") + 0,
-        wind_dir       => ($d->{current_condition}[0]{winddir16Point} // "?"),
-        desc           => ($d->{current_condition}[0]{weatherDesc}[0]{value} // "?"),
-        obs_time       => ($d->{current_condition}[0]{observation_time} // "?"),
-    };
-}
-
-# ---------------------------------------------------------------------------
-# Built-in tool: exchange_rate
-# ---------------------------------------------------------------------------
-sub tool_exchange_rate {
-    my ($args) = @_;
-    my $base   = $args->{base}   // 'USD';
-    my $target = $args->{target} // 'RUB';
-
-    my $r = _safe_http_get_json("https://api.exchangerate-api.com/v4/latest/$base");
-    die "HTTP error: $r->{status} - $r->{reason}" unless $r->{success};
-
-    my $d = $r->{data};
-    my $rate = $d->{rates}{$target};
-    die "Target currency '$target' not found." unless defined $rate;
-
-    return {
-        base       => $base,
-        target     => $target,
-        rate       => $rate + 0.0,
-        date       => $d->{date},
-        source     => "exchangerate-api.com",
-    };
-}
-
-# ---------------------------------------------------------------------------
 # Main dispatcher for built-in tools
 # ---------------------------------------------------------------------------
 sub execute_builtin {
@@ -560,12 +511,6 @@ sub execute_builtin {
     }
     elsif ($name eq 'tool_remove') {
         return tool_remove($args);
-    }
-    elsif ($name eq 'weather') {
-        return tool_weather($args);
-    }
-    elsif ($name eq 'exchange_rate') {
-        return tool_exchange_rate($args);
     }
 
     die "Unknown built-in tool: '$name'";
@@ -663,37 +608,6 @@ sub get_all_tool_definitions {
             required => ["name"],
         },
     };
-    push @tools, {
-        name        => "weather",
-        description => "Get current weather for any city. Returns temperature, humidity, wind, and description.",
-        inputSchema => {
-            type => "object",
-            properties => {
-                city => {
-                    type => "string",
-                    description => "City name (supports Cyrillic, e.g. Москва, Саратов)",
-                },
-            },
-            required => ["city"],
-        },
-    };
-    push @tools, {
-        name        => "exchange_rate",
-        description => "Get exchange rate between two currencies. Default: USD → RUB. Supports any ISO 4217 currency code.",
-        inputSchema => {
-            type => "object",
-            properties => {
-                base => {
-                    type => "string",
-                    description => "Base currency code (default: USD)",
-                },
-                target => {
-                    type => "string",
-                    description => "Target currency code (default: RUB)",
-                },
-            },
-        },
-    };
 
     # Generated tools
     for my $name (sort keys %tool_registry) {
@@ -770,7 +684,7 @@ LINE: while (my $line = <STDIN>) {
 
         eval {
             my $result;
-            my @builtin = qw(tool_generate tool_list tool_export tool_import tool_remove weather exchange_rate);
+            my @builtin = qw(tool_generate tool_list tool_export tool_import tool_remove);
             if (grep { $_ eq $tool_name } @builtin) {
                 $result = execute_builtin($tool_name, $tool_args);
             }

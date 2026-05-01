@@ -1,0 +1,39 @@
+[
+  {
+    "name": "weather",
+    "description": "Get current weather for any city. Returns temperature, humidity, wind, and description.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "city": {
+          "type": "string",
+          "description": "City name (supports Cyrillic, e.g. Москва, Саратов)"
+        }
+      },
+      "required": ["city"]
+    },
+    "code": "my $city = $args->{city} or die \"Missing required parameter: 'city'\";\nmy $r = _safe_http_get_json(\"https://wttr.in/$city?format=j1\");\ndie \"HTTP error: $r->{status} - $r->{reason}\" unless $r->{success};\nmy $d = $r->{data};\nreturn {\n    requested_city => $city,\n    city           => ($d->{nearest_area}[0]{areaName}[0]{value} // $city),\n    country        => ($d->{nearest_area}[0]{country}[0]{value} // \"?\"),\n    temp_C         => ($d->{current_condition}[0]{temp_C} // \"?\") + 0,\n    feels_like_C   => ($d->{current_condition}[0]{FeelsLikeC} // \"?\") + 0,\n    humidity       => ($d->{current_condition}[0]{humidity} // \"?\") + 0,\n    wind_speed_kmh => ($d->{current_condition}[0]{windspeedKmph} // \"?\") + 0,\n    wind_dir       => ($d->{current_condition}[0]{winddir16Point} // \"?\"),\n    desc           => ($d->{current_condition}[0]{weatherDesc}[0]{value} // \"?\"),\n    obs_time       => ($d->{current_condition}[0]{observation_time} // \"?\"),\n};",
+    "source": "builtin",
+    "created_at": "2026-05-01 00:00:00"
+  },
+  {
+    "name": "exchange_rate",
+    "description": "Get exchange rate between two currencies. Default: USD → RUB. Supports any ISO 4217 currency code.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "type": "string",
+          "description": "Base currency code (default: USD)"
+        },
+        "target": {
+          "type": "string",
+          "description": "Target currency code (default: RUB)"
+        }
+      }
+    },
+    "code": "my $base   = $args->{base}   // 'USD';\nmy $target = $args->{target} // 'RUB';\nmy $r = _safe_http_get_json(\"https://api.exchangerate-api.com/v4/latest/$base\");\ndie \"HTTP error: $r->{status} - $r->{reason}\" unless $r->{success};\nmy $d = $r->{data};\nmy $rate = $d->{rates}{$target};\ndie \"Target currency '$target' not found.\" unless defined $rate;\nreturn {\n    base       => $base,\n    target     => $target,\n    rate       => $rate + 0.0,\n    date       => $d->{date},\n    source     => \"exchangerate-api.com\",\n};",
+    "source": "builtin",
+    "created_at": "2026-05-01 00:00:00"
+  }
+]
