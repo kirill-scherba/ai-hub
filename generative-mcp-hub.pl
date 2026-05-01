@@ -256,6 +256,9 @@ sub load_tools {
             };
             $loaded++;
         };
+        if ($@) {
+            log_message("ERROR", "Failed to compile tool '" . ($t->{name}//'?') . "': $@");
+        }
     }
     log_message("INFO", "Loaded $loaded tools from $TOOLS_FILE");
 }
@@ -301,6 +304,9 @@ sub compile_in_safe {
     # not inside the sandbox — so JSON::PP doesn't need to be shared.
     $safe->share(qw(&_safe_http_get &_safe_http_get_json &_uri_escape_utf8));
 
+    # Permit ops needed by generated tools
+    $safe->permit(qw(time rand srand));
+
     # Compile the tool function
     my $compiled = $safe->reval("sub { my \$args = shift; $code_copy }");
     die "Perl Compile Error: $@" if $@;
@@ -345,6 +351,10 @@ sub tool_generate {
     save_tools();
 
     log_message("INFO", "Generated tool: $name");
+
+    # Notify client that the tool list has changed
+    send_notification("notifications/tools/list_changed");
+
     return { status => "success", data => "Tool '$name' generated and registered." };
 }
 
@@ -523,6 +533,10 @@ sub tool_remove {
     save_tools();
 
     log_message("INFO", "Removed tool: $name");
+
+    # Notify client that the tool list has changed
+    send_notification("notifications/tools/list_changed");
+
     return { status => "success", data => "Tool '$name' removed." };
 }
 
