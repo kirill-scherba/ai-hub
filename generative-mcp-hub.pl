@@ -45,7 +45,7 @@ binmode(STDERR, ":utf8");
 # Logging (to stderr — stdout is reserved for JSON-RPC protocol)
 # ---------------------------------------------------------------------------
 my $DEBUG = $ENV{AI_HUB_DEBUG} // 0;
-my $HUB_URL = '';
+our $HUB_URL = '';
 
 # Parse command line arguments
 sub parse_args {
@@ -127,7 +127,7 @@ sub _safe_http_get {
     # and backticks to capture curl's -w http_code output on stdout.
     my $tmpfile = "/tmp/ai_hub_curl_$$.bin";
     my $http_code_str = `curl -sS --max-time 10 -o "$tmpfile" -w "%{http_code}" "$url" 2>/dev/null`;
-    if (defined $http_code_str && length($http_code_str) > 0 && $http_code_str =~ /^\d+$/) {
+    if (defined $http_code_str && length($http_code_str) > 0 && $http_code_str =~ /^\d+$/ && -f $tmpfile) {
         $http_code = $http_code_str;
         $status    = $http_code + 0;
         open(my $fh, '<:raw', $tmpfile) or die "Cannot read tmpfile: $!";
@@ -203,7 +203,7 @@ sub _safe_http_get_json {
 }
 
 # Tool registry — stores generated tools
-my %tool_registry;  # name => { name, description, inputSchema, code, compiled, source }
+our %tool_registry;  # name => { name, description, inputSchema, code, compiled, source }
 
 # ---------------------------------------------------------------------------
 # Persistence — save/load generated tools to/from JSON file
@@ -997,6 +997,9 @@ sub get_all_tool_definitions {
 # ===========================================================================
 # MCP Main Loop — Infinite loop processing JSON-RPC requests from stdin
 # ===========================================================================
+# Guard: if caller is set, we're being required/tested — skip the main loop.
+# This allows test scripts to `require` this file and call subs directly.
+unless (caller) {
 
 log_message("INFO", "generative-mcp-hub server started");
 
@@ -1095,3 +1098,5 @@ LINE: while (my $line = <STDIN>) {
 
 # Cleanup
 log_message("INFO", "generative-mcp-hub server stopped");
+
+} # end unless(caller) guard

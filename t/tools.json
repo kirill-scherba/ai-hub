@@ -1,0 +1,13 @@
+[
+   {
+      "inputSchema" : {
+         "properties" : {},
+         "type" : "object"
+      },
+      "created_at" : "2026-05-01 23:11:44",
+      "description" : "Test tool",
+      "source" : "test",
+      "code" : "return { ok => 1 };",
+      "name" : "test_tool"
+   }
+]
