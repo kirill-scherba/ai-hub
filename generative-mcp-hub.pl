@@ -287,6 +287,55 @@ sub _safe_curl_verbose {
     return $out // '';
 }
 
+# ---------------------------------------------------------------------------
+# Shared GitHub API helper for Safe sandbox
+# ---------------------------------------------------------------------------
+# Calls GitHub REST API, returns { success, status, data, reason }.
+# Auth from $ENV{GITHUB_TOKEN} — token stays server-side, never in sandbox.
+# Usage from generated code:  _github_api("POST", "/repos/owner/repo/issues", {title=>"...", body=>"..."})
+# Usage without body (GET/DELETE):  _github_api("GET", "/repos/owner/repo/issues")
+# ---------------------------------------------------------------------------
+sub _github_api {
+    my ($method, $path, $body) = @_;
+    $method = uc($method // 'GET');
+    $path   //= '/';
+    my $token = $ENV{GITHUB_TOKEN} // '';
+    my $url = "https://api.github.com$path";
+
+    print STDERR "[_github_api] $method $url\n";
+
+    my $body_arg = '';
+    my $header_arg = '-s';
+    if (defined $body) {
+        # Write body to a temp file to avoid shell quoting issues with JSON
+        my $tmp = "/tmp/_github_body_$$.json";
+        open(my $fh, '>', $tmp) or return { success => 0, status => 0, reason => "Cannot write temp file: $!" };
+        print $fh $body;
+        close $fh;
+        $body_arg = "--data-binary \@'$tmp'";
+    }
+    if ($token) {
+        $header_arg .= " -H 'Authorization: Bearer $token' -H 'Accept: application/vnd.github+json' -H 'User-Agent: ai-hub/1.0'";
+    }
+    $header_arg .= ' -H ' . (defined $body ? "'Content-Type: application/json'" : "'Accept: application/vnd.github+json'");
+
+    my $result = `curl -X $method $header_arg $body_arg --connect-timeout 10 --max-time 30 '$url' 2>/dev/null`;
+    unlink "/tmp/_github_body_$$.json" if defined $body && -f "/tmp/_github_body_$$.json";
+
+    my $http_code = '';
+    my $code_check = `curl -o /dev/null -s -w '%{http_code}' -X $method $header_arg $body_arg --connect-timeout 10 --max-time 30 '$url' 2>/dev/null`;
+    $http_code = $code_check // ''; chomp $http_code; $http_code =~ s/\s+//g;
+    print STDERR "[_github_api] HTTP $http_code, response_len=" . length($result) . "\n";
+
+    # Try to decode JSON response
+    my $data = eval { $main::json_pp_decoder->decode($result) };
+    if ($@) {
+        return { success => ($http_code =~ /^2/ ? 1 : 0), status => $http_code, reason => "JSON decode error: $@" };
+    }
+
+    return { success => ($http_code =~ /^2/ ? 1 : 0), status => $http_code, data => $data };
+}
+
 # Safe-whitelisted modules
 my %safe_modules = (
     'MIME::Base64' => 1,
@@ -326,7 +375,7 @@ sub compile_in_safe {
     # Share HTTP functions and URI escape helper.
     # _safe_http_get_json does JSON::PP::decode_json HERE in main:: namespace,
     # not inside the sandbox — so JSON::PP doesn't need to be shared.
-    $safe->share(qw(&_safe_http_get &_safe_http_get_json &_uri_escape_utf8 &_safe_curl_get_http_code &_safe_curl_get_code_and_time &_safe_curl_verbose));
+    $safe->share(qw(&_safe_http_get &_safe_http_get_json &_uri_escape_utf8 &_safe_curl_get_http_code &_safe_curl_get_code_and_time &_safe_curl_verbose &_github_api));
 
     # Permit ops needed by generated tools
     $safe->permit(qw(time rand srand));

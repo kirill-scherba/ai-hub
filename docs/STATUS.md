@@ -1,6 +1,6 @@
 # AI Hub — Project Status
 
-## Current State: ✅ Release 1.0 (full cycle implemented)
+## Current State: ✅ Release 1.1 (GitHub API tools + dev workflow)
 
 ### What Has Been Implemented
 
@@ -15,7 +15,16 @@
   - 4 hub tools: hub_publish, hub_search, hub_pull, hub_list
   - hub_check on startup (logs Hub connection status)
   - HTTP helpers (hub_http_get, hub_http_post) via curl
+  - Shared helper `_github_api()` for GitHub REST API calls via GITHUB_TOKEN
   - All tools registered in tools/list and tools/call
+
+- [x] **GitHub API Tools (11 tools, source: github-tools)**
+  - Issue CRUD: create, list, get, update, add_comment, list_comments
+  - File operations: get_file, create_or_update_file
+  - Search: search_issues, search_code
+  - Repository: list_labels, list_repos
+  - All use `_github_api()` shared helper with GITHUB_TOKEN auth
+  - Human-readable source in `dev/github-tools.pl`, merged via `dev/merge-tools.pl`
 
 - [x] **Hub ↔ Client Protocol**
   - REST API: POST /tools, GET /tools, GET /tools/{name}, DELETE /tools/{name}, GET /search
@@ -53,3 +62,5 @@
 - [ ] Tool versioning support
 - [ ] Web UI for browsing tools
 - [ ] Federation between multiple Hub servers
+- [ ] GitHub webhook support for automated task management
+- [ ] Task workflow integration (Plan → GitHub Issue → Act cycle via Cline rules)

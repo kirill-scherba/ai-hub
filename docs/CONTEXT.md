@@ -7,6 +7,7 @@ AI Hub is a platform for creating, sharing, and discovering MCP tools across AI 
 It consists of two components:
 
 ### 1. **Hub Server** (Go)
+
 - HTTP REST API server written in Go, running on port 8484
 - Stores tools in keyvalembd (libSQL + Ollama embeddings)
 - Allows publishing, searching (semantically), retrieving, and deleting tools
@@ -19,6 +20,7 @@ It consists of two components:
 - Flags: `--port`, `AI_HUB_PORT`, `AI_HUB_DATA_DIR`
 
 ### 2. **generative-mcp-hub.pl** (Perl MCP Server)
+
 - MCP server communicating via JSON-RPC 2.0 over stdin/stdout
 - Allows AI to generate new MCP tools in Perl via the Safe sandbox
 - Tools:
@@ -34,7 +36,7 @@ It consists of two components:
 
 ## Architecture
 
-```
+```txt
 ┌─────────────┐     HTTP/REST      ┌──────────────────┐
 │  MCP Client  │ ◄──── JSON-RPC ───► │ generative-mcp-  │
 │  (AI Assistant) │                  │ hub.pl (Perl)    │
@@ -47,6 +49,50 @@ It consists of two components:
                                     │  keyvalembd        │
                                     │  + Ollama embeds   │
                                     └──────────────────┘
+```
+
+## Tool Sources
+
+Tools can come from three sources:
+
+1. **Imported** (`source: import`) — hand-crafted at project start.
+2. **Runtime-generated** (`source: runtime`) — created by `tool_generate` during a session.
+3. **Dev-defined** (`source: github-tools`) — defined in human-readable Perl code in `dev/github-tools.pl` and merged into `tools.json` via `dev/merge-tools.pl`.
+
+## GitHub Tools (source: github-tools)
+
+The `dev/` directory contains human-readable Perl source for GitHub API tools:
+
+| Tool | Description |
+| ------ | ------------- |
+| `github_issue_create` | Create a GitHub issue |
+| `github_issue_list` | List issues with filters |
+| `github_issue_get` | Get a single issue |
+| `github_issue_update` | Update issue fields |
+| `github_issue_add_comment` | Add a comment |
+| `github_issue_list_comments` | List comments |
+| `github_get_file` | Get file content from repo |
+| `github_create_or_update_file` | Create or update a file |
+| `github_search_issues` | Search issues with query |
+| `github_search_code` | Search code across repos |
+| `github_list_labels` | List labels for a repo |
+| `github_list_repos` | List repos for a user/org |
+
+All tools use a shared helper `_github_api()` defined in `tools.json`, which authenticates via `GITHUB_TOKEN` environment variable.
+
+## Dev Workflow
+
+```txt
+dev/github-tools.pl  (human-readable Perl code)
+        │
+        ▼
+dev/merge-tools.pl   (merges into tools.json)
+        │
+        ▼
+tools.json           (runtime format with minified code)
+        │
+        ▼
+generative-mcp-hub.pl (loads at startup)
 ```
 
 ## Key Concepts

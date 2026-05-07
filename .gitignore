@@ -1,2 +1,4 @@
-*.pl
+/*.pl
+hub.log
+hub-server
 !generative-mcp-hub.pl

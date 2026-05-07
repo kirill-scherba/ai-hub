@@ -2,7 +2,7 @@ module github.com/kirill-scherba/ai-hub/hub-server
 
 go 1.26.2
 
-require github.com/kirill-scherba/keyvalembd v0.0.0-00010101000000-000000000000
+require github.com/kirill-scherba/keyvalembd v0.0.2
 
 require (
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
@@ -17,7 +17,7 @@ require (
 	github.com/golang/protobuf v1.3.1 // indirect
 	github.com/golang/snappy v0.0.3 // indirect
 	github.com/google/flatbuffers v1.12.1 // indirect
-	github.com/kirill-scherba/s3lite v0.0.0-00010101000000-000000000000 // indirect
+	github.com/kirill-scherba/s3lite v0.1.2 // indirect
 	github.com/klauspost/compress v1.12.3 // indirect
 	github.com/libsql/sqlite-antlr4-parser v0.0.0-20240327125255-dbf53b6cbf06 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
@@ -27,7 +27,3 @@ require (
 	golang.org/x/net v0.0.0-20201021035429-f5854403a974 // indirect
 	golang.org/x/sys v0.1.0 // indirect
 )
-
-replace github.com/kirill-scherba/keyvalembd => /home/kirill/go/src/github.com/kirill-scherba/keyvalembd
-
-replace github.com/kirill-scherba/s3lite => /home/kirill/go/src/github.com/kirill-scherba/s3lite
