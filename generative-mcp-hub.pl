@@ -107,6 +107,7 @@ sub send_notification {
 # when called from inside the Safe sandbox, since Safe only shares sub names,
 # not lexical variables.
 our $json_pp_decoder = JSON::PP->new->allow_nonref;
+our $json_pp_encoder = JSON::PP->new->pretty->indent_length(2)->canonical;
 
 # ---------------------------------------------------------------------------
 # Shared HTTP GET functions for Safe sandbox
@@ -279,6 +280,35 @@ sub _safe_curl_get_code_and_time {
     return $out // '';
 }
 
+# ---------------------------------------------------------------------------
+# Shared JSON helper for Safe sandbox
+#
+# _safe_json_decode: JSON decode with eval wrapper (exception-safe in main::)
+# _safe_json_encode: JSON encode with pretty-print support
+#
+# Both run HERE in main:: namespace to avoid Safe sandbox eval BLOCK issues.
+# ---------------------------------------------------------------------------
+sub _safe_json_decode {
+    my ($json_str) = @_;
+    return undef unless defined $json_str;
+    my $data = eval { $json_pp_decoder->decode($json_str) };
+    my $err = $@;
+    $@ = '';  # Clear $@ so Safe sandbox doesn't see it as an exception
+    if ($err) {
+        return { _error => $err };
+    }
+    return $data;
+}
+
+sub _safe_json_encode {
+    my ($data, $pretty) = @_;
+    $@ = '';
+    if ($pretty) {
+        return $json_pp_encoder->encode($data);
+    }
+    return $json_pp_decoder->encode($data);
+}
+
 sub _safe_curl_verbose {
     my ($url, $timeout) = @_;
     $timeout //= 15;
@@ -290,6 +320,7 @@ sub _safe_curl_verbose {
 my %safe_modules = (
     'MIME::Base64' => 1,
     'Digest::MD5'  => 1,
+    'Digest::SHA'  => 1,
     'URI::Escape'  => 1,
     'Scalar::Util' => 1,
     'Cwd'          => 1,
@@ -322,10 +353,11 @@ sub compile_in_safe {
     # Strip 'use' statements from the actual code (already loaded)
     $code_copy =~ s/^\s*use\s+[\w:]+\s*;//gm;
 
-    # Share HTTP functions and URI escape helper.
-    # _safe_http_get_json does JSON::PP::decode_json HERE in main:: namespace,
-    # not inside the sandbox — so JSON::PP doesn't need to be shared.
-    $safe->share(qw(&_safe_http_get &_safe_http_get_json &_uri_escape_utf8 &_safe_curl_get_http_code &_safe_curl_get_code_and_time &_safe_curl_verbose));
+    # Share HTTP functions, URI escape helper, json decoder, and json_pp_decoder.
+    # _safe_http_get_json and _safe_json_decode do JSON::PP::decode_json HERE
+    # in main:: namespace, not inside the sandbox — so JSON::PP doesn't need
+    # to be shared.
+    $safe->share(qw(&_safe_http_get &_safe_http_get_json &_safe_json_decode &_safe_json_encode &_uri_escape_utf8 &_safe_curl_get_http_code &_safe_curl_get_code_and_time &_safe_curl_verbose $json_pp_decoder));
 
     # Permit ops needed by generated tools
     $safe->permit(qw(time rand srand));
@@ -575,8 +607,9 @@ sub execute_generated_tool {
     my $compiled = $tool->{compiled};
 
     # Execute in sandbox (Safe sandbox corrupts UTF-8 in the return value)
+    local $@;
     my $result = eval { $compiled->($args) };
-    if ($@) {
+    if (!defined($result) && $@) {
         log_message("ERROR", "Runtime error in tool '$name': $@");
         return { status => "error", data => "Runtime error: $@" };
     }

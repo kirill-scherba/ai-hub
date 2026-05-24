@@ -220,5 +220,71 @@
             }
          }
       }
+   },
+   {
+      "name": "json_tool",
+      "description": "JSON operations: format, validate, compress, diff. Uses JSON::PP.",
+      "inputSchema": {
+         "type": "object",
+         "required": [
+            "operation"
+         ],
+         "properties": {
+            "operation": {
+               "type": "string",
+               "enum": [
+                  "format",
+                  "validate",
+                  "compress",
+                  "diff"
+               ],
+               "description": "JSON operation to perform"
+            },
+            "json": {
+               "type": "string",
+               "description": "JSON string to operate on (required for format, validate, compress)"
+            },
+            "json2": {
+               "type": "string",
+               "description": "Second JSON string (required for diff)"
+            },
+            "indent": {
+               "type": "integer",
+               "description": "Indentation spaces for format (default: 2)"
+            }
+         }
+      },
+      "code": "my $op     = $args->{operation} or return { error => \"Missing required parameter: operation\" };\nmy $json   = $args->{json};\nmy $json2  = $args->{json2};\nmy $indent = $args->{indent} // 2;\nif ($op eq 'format') {\n    return { error => \"Missing required for format: json\" } unless defined $json;\n    my $decoded = _safe_json_decode($json);\n    return { error => \"Invalid JSON: \" . $decoded->{_error}, operation => 'format' } if (ref $decoded eq 'HASH' && exists $decoded->{_error});\n    my $formatted = _safe_json_encode($decoded, 1);\n    return { result => $formatted, operation => 'format', indent => $indent };\n}\nif ($op eq 'validate') {\n    return { error => \"Missing required for validate: json\" } unless defined $json;\n    my $decoded = _safe_json_decode($json);\n    my $valid = !(ref $decoded eq 'HASH' && exists $decoded->{_error});\n    my $err = $valid ? undef : $decoded->{_error};\n    return { valid => ($valid ? 1 : 0), error => $err, operation => 'validate' };\n}\nif ($op eq 'compress') {\n    return { error => \"Missing required for compress: json\" } unless defined $json;\n    my $decoded = _safe_json_decode($json);\n    return { error => \"Invalid JSON: \" . $decoded->{_error}, operation => 'compress' } if (ref $decoded eq 'HASH' && exists $decoded->{_error});\n    my $compressed = _safe_json_encode($decoded, 0);\n    chomp $compressed;\n    my $orig_len = length($json);\n    my $comp_len = length($compressed);\n    my $pct = $orig_len > 0 ? sprintf(\"%.1f\", (1 - $comp_len / $orig_len) * 100) : \"0.0\";\n    return { result => $compressed, original_size => $orig_len, compressed_size => $comp_len, compression_pct => $pct, operation => 'compress' };\n}\nif ($op eq 'diff') {\n    return { error => \"Missing required for diff: json and json2\" } unless defined $json && defined $json2;\n    my $d1 = _safe_json_decode($json);\n    return { error => \"First JSON invalid: \" . $d1->{_error}, operation => 'diff' } if (ref $d1 eq 'HASH' && exists $d1->{_error});\n    my $d2 = _safe_json_decode($json2);\n    return { error => \"Second JSON invalid: \" . $d2->{_error}, operation => 'diff' } if (ref $d2 eq 'HASH' && exists $d2->{_error});\n    my $json1_str = _safe_json_encode($d1, 0);\n    my $json2_str = _safe_json_encode($d2, 0);\n    if ($json1_str eq $json2_str) {\n        return { identical => 1, operation => 'diff' };\n    }\n    return { identical => 0, operation => 'diff', left => _safe_json_encode($d1, 1), right => _safe_json_encode($d2, 1) };\n}\nreturn { error => \"Unknown operation: $op. Supported: format, validate, compress, diff\" };",
+      "source": "runtime",
+      "created_at": "2026-05-24 12:25:32"
+   },
+   {
+      "name": "hash_generate",
+      "description": "Generate hash digests for text. Supports md5, sha1, sha256, sha512. Uses Digest::MD5 and Digest::SHA.",
+      "inputSchema": {
+         "type": "object",
+         "required": [
+            "text"
+         ],
+         "properties": {
+            "text": {
+               "type": "string",
+               "description": "Text content to hash"
+            },
+            "algorithm": {
+               "type": "string",
+               "enum": [
+                  "md5",
+                  "sha1",
+                  "sha256",
+                  "sha512"
+               ],
+               "description": "Hash algorithm (default: sha256)"
+            }
+         }
+      },
+      "code": "my $text      = $args->{text} or die \"Missing required parameter: text\";\nmy $algorithm = $args->{algorithm} // 'sha256';\nuse Digest::MD5;\nuse Digest::SHA;\nmy %algo_map = (md5 => 'MD5', sha1 => 'SHA-1', sha256 => 'SHA-256', sha512 => 'SHA-512');\nmy $digest_hex;\nif ($algorithm eq 'md5') {\n    $digest_hex = md5_hex($text);\n} elsif ($algorithm eq 'sha1') {\n    $digest_hex = sha1_hex($text);\n} elsif ($algorithm eq 'sha256') {\n    $digest_hex = sha256_hex($text);\n} else {\n    $digest_hex = sha512_hex($text);\n}\nreturn {\n    algorithm     => $algorithm,\n    digest_hex    => $digest_hex,\n    digest_length => length($digest_hex) * 4,\n    input_size    => length($text),\n};",
+      "source": "runtime",
+      "created_at": "2026-05-24 12:25:32"
    }
 ]
