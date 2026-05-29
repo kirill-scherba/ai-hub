@@ -27,7 +27,6 @@
 use strict;
 use warnings;
 use utf8;
-use JSON;
 use JSON::PP;
 use Safe;
 use POSIX qw(strftime);
@@ -73,7 +72,7 @@ sub log_message {
 # ---------------------------------------------------------------------------
 # JSON-RPC helpers
 # ---------------------------------------------------------------------------
-my $json = JSON->new->allow_nonref;
+my $json = JSON::PP->new->allow_nonref;
 
 sub respond {
     my ($id, $result) = @_;
@@ -1040,9 +1039,6 @@ load_tools();
 
 # Check hub connectivity
 hub_check();
-
-# Notify the client that we are ready
-send_notification("initialized");
 
 LINE: while (my $line = <STDIN>) {
     chomp $line;
