@@ -64,3 +64,7 @@
 - [ ] Federation between multiple Hub servers
 - [ ] GitHub webhook support for automated task management
 - [ ] Task workflow integration (Plan → GitHub Issue → Act cycle via Cline rules)
+- [ ] **Context Weaver (In Progress/Paused)**
+  - Goal: Automate docs update via `git diff` analysis.
+  - Required: `_safe_read_file`, `_safe_git_diff` helpers in Perl hub.
+  - Status: Initial implementation caused MCP timeouts; needs careful re-integration.

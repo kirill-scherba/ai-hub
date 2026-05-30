@@ -100,4 +100,5 @@ generative-mcp-hub.pl (loads at startup)
 - **Tool definition** — JSON object with name, description, inputSchema, code, created_at
 - **Semantic search** — via Ollama embedding (model embeddinggemma:latest)
 - **Safe sandbox** — Perl Safe module for secure code execution
+- **Safe Bridges (Planned)** — Shared helpers for filesystem and git access inside the sandbox (see `docs/FUTURE.md`).
 - **Persistence** — tools are saved to disk (tools.json) and in keyvalembd (hub.db)
