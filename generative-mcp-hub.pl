@@ -106,6 +106,10 @@ sub send_notification {
 # when called from inside the Safe sandbox, since Safe only shares sub names,
 # not lexical variables.
 our $json_pp_decoder = JSON::PP->new->allow_nonref;
+
+# Shared env vars for sandbox tools (set at startup from real %ENV)
+our $OPENAI_API_KEY = $ENV{OPENAI_API_KEY} // '';
+our $VISION_MODEL   = $ENV{VISION_MODEL} // 'gpt-4o-mini';
 our $json_pp_encoder = JSON::PP->new->pretty->indent_length(2)->canonical;
 
 # ---------------------------------------------------------------------------
@@ -180,6 +184,35 @@ sub _uri_escape_utf8 {
         }
     }
     return $escaped;
+}
+
+sub _safe_http_post {
+    my ($url, $json_body) = @_;
+    print STDERR "[_safe_http_post] URL=$url\n";
+    my ($content, $status);
+    if (open(my $fh, '-|', 'curl', '-sS', '--max-time', '30',
+             '-X', 'POST', '-H', 'Content-Type: application/json',
+             '-d', $json_body, '-o', '-', '-w', "\n%{http_code}\n",
+             $url)) {
+        local $/;
+        my $all = <$fh>;
+        close $fh;
+        utf8::decode($all);
+        my @parts = split /\n/, $all;
+        my $http_code = pop @parts;
+        $content = join("\n", @parts);
+        $status  = $http_code + 0;
+    } else {
+        $content = '';
+        $status  = 0;
+    }
+    print STDERR "[_safe_http_post] status=$status content_len=" . length($content // '') . "\n";
+    return {
+        success => ($status >= 200 && $status < 300) ? 1 : 0,
+        status  => $status,
+        reason  => $status >= 200 && $status < 300 ? 'OK' : "HTTP $status",
+        content => $content,
+    };
 }
 
 sub _safe_http_get_json {
@@ -356,7 +389,7 @@ sub compile_in_safe {
     # _safe_http_get_json and _safe_json_decode do JSON::PP::decode_json HERE
     # in main:: namespace, not inside the sandbox — so JSON::PP doesn't need
     # to be shared.
-    $safe->share(qw(&_safe_http_get &_safe_http_get_json &_safe_json_decode &_safe_json_encode &_uri_escape_utf8 &_safe_curl_get_http_code &_safe_curl_get_code_and_time &_safe_curl_verbose $json_pp_decoder));
+    $safe->share(qw(&_safe_http_get &_safe_http_post &_safe_http_get_json &_safe_json_decode &_safe_json_encode &_uri_escape_utf8 &_safe_curl_get_http_code &_safe_curl_get_code_and_time &_safe_curl_verbose $json_pp_decoder $OPENAI_API_KEY $VISION_MODEL));
 
     # Permit ops needed by generated tools
     $safe->permit(qw(time rand srand));
