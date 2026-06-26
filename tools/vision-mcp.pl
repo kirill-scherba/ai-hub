@@ -76,23 +76,31 @@ sub do_vision_analyze {
 
     my $body = $json->encode($payload);
 
+    # Write body to temp file to avoid "Argument list too long"
+    my $tmpfile = "/tmp/vision_mcp_req_$$.json";
+    open(my $tmpfh, '>:utf8', $tmpfile) or die "Cannot write $tmpfile: $!";
+    print $tmpfh $body;
+    close $tmpfh;
+
     # HTTP POST via curl
     my ($content, $status);
-    if (open(my $fh, '-|', 'curl', '-sS', '--max-time', '60',
+    if (open(my $fh, '-|', 'curl', '-sS', '--max-time', '120',
              '-X', 'POST',
              '-H', 'Content-Type: application/json',
              '-H', "Authorization: Bearer $api_key",
-             '-d', $body,
+             '-d', '@' . $tmpfile,
              '-o', '-', '-w', "\n%{http_code}\n",
              'https://api.openai.com/v1/chat/completions')) {
         local $/;
         my $all = <$fh>;
         close $fh;
+        unlink $tmpfile;
         utf8::decode($all);
         my @parts = split /\n/, $all;
         $status  = pop @parts;
         $content = join("\n", @parts);
     } else {
+        unlink $tmpfile;
         die "Failed to execute curl";
     }
 
