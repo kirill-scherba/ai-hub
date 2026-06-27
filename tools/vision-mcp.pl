@@ -31,31 +31,61 @@ sub respond_error {
     STDOUT->flush();
 }
 
+sub _compress_image {
+    my ($file_path) = @_;
+    # Resize to max 2048px on longest side, convert to JPEG quality 75
+    my $tmp = "/tmp/vision_compress_$$.jpg";
+    system('magick', $file_path, '-resize', '2048x2048>', '-quality', '75', $tmp);
+    die "Image compression failed" unless -e $tmp;
+    return $tmp;
+}
+
 sub do_vision_analyze {
     my ($args) = @_;
-    my $url      = $args->{url}      // '';
-    my $file_path = $args->{file_path} // '';
-    my $question = $args->{question} // 'Describe this image in detail in Russian. What do you see?';
-    my $model    = $ENV{VISION_MODEL} // 'gpt-4o-mini';
+    my $url       = $args->{url}       // '';
+    my $file_path = $args->{file_path}  // '';
+    my $question  = $args->{question}  // 'Describe this image in detail in Russian. What do you see?';
+    my $model     = $ENV{VISION_MODEL} // 'gpt-4o-mini';
+    my $compress  = defined $args->{compress} ? $args->{compress} : 1;
 
     my $api_key = $ENV{OPENAI_API_KEY} or die "OPENAI_API_KEY not set";
 
     # Resolve image source: file_path takes priority over url
     my $image_url;
     if ($file_path) {
-        open(my $fh, '<:raw', $file_path) or die "Cannot read file: $file_path ($!)";
+        # Optionally compress local file
+        my $source = $compress ? _compress_image($file_path) : $file_path;
+        open(my $fh, '<:raw', $source) or die "Cannot read file: $source ($!)";
         local $/;
         my $data = <$fh>;
         close $fh;
+        unlink $source if $compress;  # remove temp file
         my $b64 = encode_base64($data, '');
-        my $ext = $file_path =~ /\.(\w+)$/ ? lc($1) : 'png';
-        my %mime = (png => 'image/png', jpg => 'image/jpeg', jpeg => 'image/jpeg',
-                    webp => 'image/webp', gif => 'image/gif', bmp => 'image/bmp',
-                    tiff => 'image/tiff', tif => 'image/tiff');
-        my $mime = $mime{$ext} // 'image/png';
+        my $mime = $compress ? 'image/jpeg' : do {
+            my $ext = $file_path =~ /\.(\w+)$/ ? lc($1) : 'png';
+            my %mime = (png => 'image/png', jpg => 'image/jpeg', jpeg => 'image/jpeg',
+                        webp => 'image/webp', gif => 'image/gif', bmp => 'image/bmp',
+                        tiff => 'image/tiff', tif => 'image/tiff');
+            $mime{$ext} // 'image/png';
+        };
         $image_url = "data:$mime;base64,$b64";
     } elsif ($url) {
-        $image_url = $url;
+        # Download URL locally so we can optionally compress
+        my $tmp_url = "/tmp/vision_url_$$.jpg";
+        my $curl_exit = system('curl', '-sS', '-L', '--max-time', '60', '-o', $tmp_url, $url);
+        die "URL download failed (exit=$curl_exit): $url" unless -e $tmp_url && -s $tmp_url;
+        if ($compress) {
+            my $compressed = _compress_image($tmp_url);
+            unlink $tmp_url;
+            $tmp_url = $compressed;
+        }
+        open(my $fh, '<:raw', $tmp_url) or die "Cannot read downloaded file ($!)";
+        local $/;
+        my $data = <$fh>;
+        close $fh;
+        unlink $tmp_url;
+        my $b64 = encode_base64($data, '');
+        $image_url = "data:image/jpeg;base64,$b64";
     } else {
         die "Missing required: provide either 'url' or 'file_path'";
     }
@@ -167,6 +197,10 @@ while (my $line = <STDIN>) {
                             question => {
                                 type        => 'string',
                                 description => 'Optional question about the image (default: Describe in Russian)',
+                            },
+                            compress => {
+                                type        => 'boolean',
+                                description => 'Compress image before sending (default: true). Set false for full detail preservation.',
                             },
                         },
                     },
