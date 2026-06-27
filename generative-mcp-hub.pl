@@ -189,7 +189,7 @@ sub _uri_escape_utf8 {
 sub _safe_http_post {
     my ($url, $json_body, $auth_header) = @_;
     print STDERR "[_safe_http_post] URL=$url\n";
-    my @curl = ('curl', '-sS', '--max-time', '30',
+    my @curl = ('curl', '-sS', '--max-time', '300',
                 '-X', 'POST', '-H', 'Content-Type: application/json');
     if ($auth_header) {
         push @curl, '-H', "Authorization: $auth_header";
@@ -395,7 +395,7 @@ sub compile_in_safe {
     $safe->share(qw(&_safe_http_get &_safe_http_post &_safe_http_get_json &_safe_json_decode &_safe_json_encode &_uri_escape_utf8 &_safe_curl_get_http_code &_safe_curl_get_code_and_time &_safe_curl_verbose $json_pp_decoder $OPENAI_API_KEY $VISION_MODEL));
 
     # Permit ops needed by generated tools
-    $safe->permit(qw(time rand srand));
+    $safe->permit(qw(time rand srand open close print));
 
     # Compile the tool function
     my $compiled = $safe->reval("sub { my \$args = shift; $code_copy }");
