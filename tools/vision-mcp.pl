@@ -40,26 +40,43 @@ sub _compress_image {
     return $tmp;
 }
 
-sub do_vision_analyze {
+sub _http_post_json {
+    my ($url, $payload, $auth_header) = @_;
+    my $body = $json->encode($payload);
+    my $tmpfile = "/tmp/vision_req_$$.json";
+    open(my $fh, '>:utf8', $tmpfile) or die "Cannot write $tmpfile: $!";
+    print $fh $body;
+    close $fh;
+
+    my @curl = ('curl', '-sS', '--max-time', '120', '-X', 'POST',
+                '-H', 'Content-Type: application/json', '-d', '@' . $tmpfile);
+    push @curl, '-H', $auth_header if $auth_header;
+    push @curl, '-o', '-', '-w', "\n%{http_code}\n", $url;
+
+    open(my $fh, '-|', @curl) or die "Failed to execute curl";
+    local $/;
+    my $all = <$fh>;
+    close $fh;
+    unlink $tmpfile;
+    utf8::decode($all) if $all;
+    my @parts = split /\n/, $all;
+    my $status = pop @parts;
+    return ($status, join("\n", @parts));
+}
+
+sub _resolve_image {
     my ($args) = @_;
     my $url       = $args->{url}       // '';
     my $file_path = $args->{file_path}  // '';
-    my $question  = $args->{question}  // 'Describe this image in detail in Russian. What do you see?';
-    my $model     = $ENV{VISION_MODEL} // 'gpt-4o-mini';
     my $compress  = defined $args->{compress} ? $args->{compress} : 1;
 
-    my $api_key = $ENV{OPENAI_API_KEY} or die "OPENAI_API_KEY not set";
-
-    # Resolve image source: file_path takes priority over url
-    my $image_url;
     if ($file_path) {
-        # Optionally compress local file
         my $source = $compress ? _compress_image($file_path) : $file_path;
         open(my $fh, '<:raw', $source) or die "Cannot read file: $source ($!)";
         local $/;
         my $data = <$fh>;
         close $fh;
-        unlink $source if $compress;  # remove temp file
+        unlink $source if $compress;
         my $b64 = encode_base64($data, '');
         my $mime = $compress ? 'image/jpeg' : do {
             my $ext = $file_path =~ /\.(\w+)$/ ? lc($1) : 'png';
@@ -68,83 +85,110 @@ sub do_vision_analyze {
                         tiff => 'image/tiff', tif => 'image/tiff');
             $mime{$ext} // 'image/png';
         };
-        $image_url = "data:$mime;base64,$b64";
-    } elsif ($url) {
-        # Download URL locally so we can optionally compress
-        my $tmp_url = "/tmp/vision_url_$$.jpg";
-        my $curl_exit = system('curl', '-sS', '-L', '--max-time', '60', '-o', $tmp_url, $url);
-        die "URL download failed (exit=$curl_exit): $url" unless -e $tmp_url && -s $tmp_url;
+        return { base64 => $b64, mime => $mime };
+    }
+    elsif ($url) {
+        my $tmp = "/tmp/vision_url_$$.jpg";
+        my $exit = system('curl', '-sS', '-L', '--max-time', '60', '-o', $tmp, $url);
+        die "URL download failed (exit=$exit): $url" unless -e $tmp && -s $tmp;
         if ($compress) {
-            my $compressed = _compress_image($tmp_url);
-            unlink $tmp_url;
-            $tmp_url = $compressed;
+            my $compressed = _compress_image($tmp);
+            unlink $tmp;
+            $tmp = $compressed;
         }
-        open(my $fh, '<:raw', $tmp_url) or die "Cannot read downloaded file ($!)";
+        open(my $fh, '<:raw', $tmp) or die "Cannot read downloaded file ($!)";
         local $/;
         my $data = <$fh>;
         close $fh;
-        unlink $tmp_url;
-        my $b64 = encode_base64($data, '');
-        $image_url = "data:image/jpeg;base64,$b64";
-    } else {
-        die "Missing required: provide either 'url' or 'file_path'";
+        unlink $tmp;
+        return { base64 => encode_base64($data, ''), mime => 'image/jpeg' };
     }
+    die "Missing required: provide either 'url' or 'file_path'";
+}
+
+sub _call_openai {
+    my ($img, $question, $model) = @_;
+    my $api_key = $ENV{OPENAI_API_KEY} or die "OPENAI_API_KEY not set for OpenAI model";
+    my $img_url = "data:$img->{mime};base64,$img->{base64}";
 
     my $payload = {
         model => $model,
-        messages => [
-            {
-                role => 'user',
-                content => [
-                    { type => 'text', text => $question },
-                    { type => 'image_url', image_url => { url => $image_url } },
-                ],
-            },
-        ],
+        messages => [{
+            role => 'user',
+            content => [
+                { type => 'text', text => $question },
+                { type => 'image_url', image_url => { url => $img_url } },
+            ],
+        }],
         max_tokens => 1000,
     };
 
-    my $body = $json->encode($payload);
-
-    # Write body to temp file to avoid "Argument list too long"
-    my $tmpfile = "/tmp/vision_mcp_req_$$.json";
-    open(my $tmpfh, '>:utf8', $tmpfile) or die "Cannot write $tmpfile: $!";
-    print $tmpfh $body;
-    close $tmpfh;
-
-    # HTTP POST via curl
-    my ($content, $status);
-    if (open(my $fh, '-|', 'curl', '-sS', '--max-time', '120',
-             '-X', 'POST',
-             '-H', 'Content-Type: application/json',
-             '-H', "Authorization: Bearer $api_key",
-             '-d', '@' . $tmpfile,
-             '-o', '-', '-w', "\n%{http_code}\n",
-             'https://api.openai.com/v1/chat/completions')) {
-        local $/;
-        my $all = <$fh>;
-        close $fh;
-        unlink $tmpfile;
-        utf8::decode($all);
-        my @parts = split /\n/, $all;
-        $status  = pop @parts;
-        $content = join("\n", @parts);
-    } else {
-        unlink $tmpfile;
-        die "Failed to execute curl";
-    }
-
-    die "API error (HTTP $status): " . substr($content // '', 0, 500) unless $status eq '200';
+    my ($status, $content) = _http_post_json(
+        'https://api.openai.com/v1/chat/completions',
+        $payload,
+        "Authorization: Bearer $api_key",
+    );
+    die "OpenAI API error (HTTP $status)" unless $status eq '200';
 
     my $data = $json->decode($content);
-    my $text  = $data->{choices}[0]{message}{content} // 'No response';
-    my $tokens = $data->{usage}{total_tokens} // 0;
+    return {
+        description => $data->{choices}[0]{message}{content} // 'No response',
+        model       => $model,
+        tokens_used => $data->{usage}{total_tokens} // 0,
+    };
+}
+
+sub _call_ollama {
+    my ($img, $question, $model) = @_;
+
+    my $payload = {
+        model => $model,
+        messages => [{
+            role    => 'user',
+            content => $question,
+            images  => [$img->{base64}],
+        }],
+        stream => JSON::PP::false,
+    };
+
+    my ($status, $content) = _http_post_json(
+        'http://localhost:11434/api/chat',
+        $payload,
+        undef,  # no auth header
+    );
+    die "Ollama API error (HTTP $status)" unless $status eq '200';
+
+    # Parse NDJSON response
+    my $full_text = '';
+    my $tokens;
+    for my $line (split /\n/, $content) {
+        next unless $line =~ /\S/;
+        my $chunk = eval { $json->decode($line) };
+        next unless $chunk;
+        $full_text .= $chunk->{message}{content} // '';
+        $tokens = $chunk->{eval_count} if $chunk->{done};
+    }
 
     return {
-        description => $text,
+        description => $full_text,
         model       => $model,
-        tokens_used => $tokens,
+        tokens_used => $tokens // 0,
     };
+}
+
+sub do_vision_analyze {
+    my ($args) = @_;
+    my $question  = $args->{question}  // 'Describe this image in detail in Russian. What do you see?';
+    my $model     = $args->{model} // $ENV{VISION_MODEL} // 'gpt-4o-mini';
+    $args->{compress} = defined $args->{compress} ? $args->{compress} : 1;
+
+    my $img = _resolve_image($args);
+
+    if ($model =~ /^gpt/i) {
+        return _call_openai($img, $question, $model);
+    } else {
+        return _call_ollama($img, $question, $model);
+    }
 }
 
 # MCP Main Loop
@@ -182,7 +226,7 @@ while (my $line = <STDIN>) {
             tools => [
                 {
                     name        => 'vision_analyze',
-                    description => 'Analyze an image using OpenAI Vision API. Provide image URL and optional question. Returns detailed description of the image content.',
+                    description => 'Analyze an image using OpenAI Vision API or a local Ollama model. Provide image URL and optional question. Returns detailed description of the image content.',
                     inputSchema => {
                         type       => 'object',
                         properties => {
@@ -201,6 +245,10 @@ while (my $line = <STDIN>) {
                             compress => {
                                 type        => 'boolean',
                                 description => 'Compress image before sending (default: true). Set false for full detail preservation.',
+                            },
+                            model => {
+                                type        => 'string',
+                                description => 'Model to use: gpt-4o-mini (OpenAI, default), kimi-k2.7-code:cloud, minimax-m3:cloud, gemma4:cloud, gemma4:latest, llama3.2-vision, etc.',
                             },
                         },
                     },
