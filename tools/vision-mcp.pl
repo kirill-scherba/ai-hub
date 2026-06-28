@@ -89,8 +89,26 @@ sub _resolve_image {
     }
     elsif ($url) {
         my $tmp = "/tmp/vision_url_$$.jpg";
-        my $exit = system('curl', '-sS', '-L', '--max-time', '60', '-o', $tmp, $url);
-        die "URL download failed (exit=$exit): $url" unless -e $tmp && -s $tmp;
+
+        # Yandex Disk support: resolve public link to direct download
+        if ($url =~ m{disk\.yandex\.(?:ru|com|by|kz|ee)}i || $url =~ m{yadi\.sk}i) {
+            require URI::Escape;
+            my $pub_key = URI::Escape::uri_escape($url);
+            my $api = "https://cloud-api.yandex.net/v1/disk/public/resources/download?public_key=$pub_key";
+            my $atmp = "/tmp/vision_yadisk_api_$$.json";
+            system('curl', '-sS', '--max-time', '15', '-o', $atmp, $api);
+            die "Yandex Disk API failed" unless -e $atmp && -s $atmp;
+            open(my $afh, '<:utf8', $atmp) or die "Cannot read $atmp ($!)";
+            local $/; my $abody = <$afh>; close $afh; unlink $atmp;
+            my $adata = eval { $json->decode($abody) };
+            die "Yandex Disk API: bad response" unless $adata && $adata->{href};
+            my $exit = system('curl', '-sS', '-L', '--max-time', '120', '-o', $tmp, $adata->{href});
+            die "Yandex Disk download failed (exit=$exit)" unless -e $tmp && -s $tmp;
+        }
+        else {
+            my $exit = system('curl', '-sS', '-L', '--max-time', '60', '-o', $tmp, $url);
+            die "URL download failed (exit=$exit): $url" unless -e $tmp && -s $tmp;
+        }
         if ($compress) {
             my $compressed = _compress_image($tmp);
             unlink $tmp;
