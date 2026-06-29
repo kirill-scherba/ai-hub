@@ -65,8 +65,8 @@ jobs:
         check-latest: true
 
     - name: Build Go Hub Server
-      run: go build -o ../hub-server .
+      run: go build .
       working-directory: hub-server
 
     - name: Check binary exists
-      run: test -f hub-server && echo "Build successful"
+      run: test -f hub-server/hub-server && echo "Build successful"
