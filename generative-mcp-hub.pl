@@ -189,7 +189,7 @@ sub _uri_escape_utf8 {
 sub _safe_http_post {
     my ($url, $json_body, $auth_header) = @_;
     print STDERR "[_safe_http_post] URL=$url\n";
-    my @curl = ('curl', '-sS', '--max-time', '300',
+    my @curl = ('curl', '-sS', '--max-time', '600',
                 '-X', 'POST', '-H', 'Content-Type: application/json');
     if ($auth_header) {
         push @curl, '-H', "Authorization: $auth_header";

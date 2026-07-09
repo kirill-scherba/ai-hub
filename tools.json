@@ -1,320 +1,331 @@
 [
    {
-      "name" : "code_explain",
-      "source" : "import",
-      "description" : "Explain code snippets: detect language, identify patterns, estimate complexity, find potential bugs.",
-      "code" : "my $c = $args->{code} // \"\"; return {error => \"Code required\"} unless $c; my $d = $args->{detail} // \"normal\"; my %langs = (   \"sub\" => \"Perl\", lambda => \"Python\", function => \"JavaScript\",   def => \"Python\", func => \"Go\", fn => \"Rust\",   class => \"OOP\", import => \"Python/JS\", include => \"C/C++/PHP\",   package => \"Go/Java\", module => \"Ruby/Python\", use => \"Perl\",   int => \"C/Java\", string => \"Go/C++\", var => \"JS/Go\",   let => \"JS/TS\", const => \"JS/TS\", println => \"Go/Rust\",   printf => \"C\", console => \"JS\", echo => \"PHP/Bash\",   System => \"Java/C#\", fmt => \"Go\", print => \"Python\" ); my $lang = \"Unknown\"; for my $k (keys %langs) {   if ($c =~ /\\b$k\\b/) { $lang = $langs{$k}; last } } my $lines = scalar(split(/\\n/, $c)); my $blank = scalar(grep { /^\\s*$/ } split(/\\n/, $c)); my $comments = scalar(grep { /\\/\\/|#|--|%|<\\!\\-\\-|\\/\\*/ } split(/\\n/, $c)); my $loops = scalar(grep { /\\b(for|while|foreach|map|grep)\\s*\\(/ } split(/\\n/, $c)); my $conds = scalar(grep { /\\b(if|unless|switch|case|when)\\b/ } split(/\\n/, $c)); my $funcs = scalar(grep { /\\b(function|def|sub|func|fn|void|int|string)\\s+\\w+\\s*\\(/ } split(/\\n/, $c)); my $complexity = \"Simple\"; if ($loops > 1 || $conds > 2) { $complexity = \"Moderate\" } if ($loops > 3 || $conds > 5 || $funcs > 3) { $complexity = \"Complex\" } my @bugs; if ($c =~ /SELECT.*\\$|query\\s*=.*\\.\\s*\\s*\\$|concat\\s*\\(.*\\$.*;|\\.join\\(/i) { push @bugs, \"Possible SQL injection\" } if ($c =~ /\\beval\\s*\\(/) { push @bugs, \"Unsafe eval usage\" } if ($c =~ /(password|secret|api_key|token)\\s*[=:]\\s*[\"\\x27](?!\\*)/i) { push @bugs, \"Hardcoded credentials\" } if ($c =~ /\\bread\\(|<\\$.*>|param|req\\./i && $c !~ /valid|sanitize|escape/i) { push @bugs, \"Missing input validation\" } my $explain = \"\"; if ($d ne \"brief\") {   $explain = \"This $lang code has $lines lines ($blank blank, $comments comments). \";   $explain .= \"It defines $funcs function(s), uses $loops loop(s) and $conds conditional(s). \";   $explain .= \"Complexity: $complexity.\";   if (@bugs) { $explain .= \" Potential issues: \" . join(\"; \", @bugs) . \".\" } } return {language => $lang, lines => $lines, blank_lines => $blank,  comments => $comments, functions => $funcs, loops => $loops,  conditionals => $conds, complexity => $complexity,  potential_bugs => \\@bugs, explanation => $explain};",
-      "created_at" : "2026-05-01 18:31:31",
-      "inputSchema" : {
-         "type" : "object",
-         "properties" : {
-            "detail" : {
-               "type" : "string",
-               "description" : "Detail level: brief, normal, detailed (default: normal)"
+      "code": "my $c = $args->{code} // \"\"; return {error => \"Code required\"} unless $c; my $d = $args->{detail} // \"normal\"; my %langs = (   \"sub\" => \"Perl\", lambda => \"Python\", function => \"JavaScript\",   def => \"Python\", func => \"Go\", fn => \"Rust\",   class => \"OOP\", import => \"Python/JS\", include => \"C/C++/PHP\",   package => \"Go/Java\", module => \"Ruby/Python\", use => \"Perl\",   int => \"C/Java\", string => \"Go/C++\", var => \"JS/Go\",   let => \"JS/TS\", const => \"JS/TS\", println => \"Go/Rust\",   printf => \"C\", console => \"JS\", echo => \"PHP/Bash\",   System => \"Java/C#\", fmt => \"Go\", print => \"Python\" ); my $lang = \"Unknown\"; for my $k (keys %langs) {   if ($c =~ /\\b$k\\b/) { $lang = $langs{$k}; last } } my $lines = scalar(split(/\\n/, $c)); my $blank = scalar(grep { /^\\s*$/ } split(/\\n/, $c)); my $comments = scalar(grep { /\\/\\/|#|--|%|<\\!\\-\\-|\\/\\*/ } split(/\\n/, $c)); my $loops = scalar(grep { /\\b(for|while|foreach|map|grep)\\s*\\(/ } split(/\\n/, $c)); my $conds = scalar(grep { /\\b(if|unless|switch|case|when)\\b/ } split(/\\n/, $c)); my $funcs = scalar(grep { /\\b(function|def|sub|func|fn|void|int|string)\\s+\\w+\\s*\\(/ } split(/\\n/, $c)); my $complexity = \"Simple\"; if ($loops > 1 || $conds > 2) { $complexity = \"Moderate\" } if ($loops > 3 || $conds > 5 || $funcs > 3) { $complexity = \"Complex\" } my @bugs; if ($c =~ /SELECT.*\\$|query\\s*=.*\\.\\s*\\s*\\$|concat\\s*\\(.*\\$.*;|\\.join\\(/i) { push @bugs, \"Possible SQL injection\" } if ($c =~ /\\beval\\s*\\(/) { push @bugs, \"Unsafe eval usage\" } if ($c =~ /(password|secret|api_key|token)\\s*[=:]\\s*[\"\\x27](?!\\*)/i) { push @bugs, \"Hardcoded credentials\" } if ($c =~ /\\bread\\(|<\\$.*>|param|req\\./i && $c !~ /valid|sanitize|escape/i) { push @bugs, \"Missing input validation\" } my $explain = \"\"; if ($d ne \"brief\") {   $explain = \"This $lang code has $lines lines ($blank blank, $comments comments). \";   $explain .= \"It defines $funcs function(s), uses $loops loop(s) and $conds conditional(s). \";   $explain .= \"Complexity: $complexity.\";   if (@bugs) { $explain .= \" Potential issues: \" . join(\"; \", @bugs) . \".\" } } return {language => $lang, lines => $lines, blank_lines => $blank,  comments => $comments, functions => $funcs, loops => $loops,  conditionals => $conds, complexity => $complexity,  potential_bugs => \\@bugs, explanation => $explain};",
+      "name": "code_explain",
+      "inputSchema": {
+         "type": "object",
+         "properties": {
+            "code": {
+               "type": "string",
+               "description": "Source code to analyze and explain"
             },
-            "code" : {
-               "description" : "Source code to analyze and explain",
-               "type" : "string"
+            "detail": {
+               "type": "string",
+               "description": "Detail level: brief, normal, detailed (default: normal)"
             }
          },
-         "required" : [
+         "required": [
             "code"
          ]
-      }
+      },
+      "source": "import",
+      "description": "Explain code snippets: detect language, identify patterns, estimate complexity, find potential bugs.",
+      "created_at": "2026-05-01 18:31:31"
    },
    {
-      "source" : "runtime",
-      "name" : "convert_units",
-      "code" : "my($v,$f,$t)=@{$args}{qw(value from to)};die unless defined$v&&$f&&$t;my%c=(mile=>1,km=>1,m=>1,ft=>1,in=>1,yard=>1,kg=>2,g=>2,lb=>2,oz=>2,C=>3,F=>3,K=>3,L=>4,mL=>4,gal=>4,qt=>4,pt=>4,cup=>4,fl_oz=>4);die\"bad $f\"unless$c{$f};die\"mismatch\"unless$c{$f}eq$c{$t};if($c{$f}==1){my%m=(mile=>1609.344,km=>1000,m=>1,ft=>0.3048,in=>0.0254,yard=>0.9144);return{result=>$v*$m{$f}/$m{$t}+0.0,from=>$f,to=>$t,value=>$v,category=>'length'}}if($c{$f}==2){my%m=(kg=>1,g=>0.001,lb=>0.453592,oz=>0.0283495);return{result=>$v*$m{$f}/$m{$t}+0.0,from=>$f,to=>$t,value=>$v,category=>'weight'}}if($c{$f}==3){my$k=$f eq'K'?$v:$f eq'C'?$v+273.15:($v-32)*5/9+273.15;my$r=$t eq'K'?$k:$t eq'C'?$k-273.15:($k-273.15)*9/5+32;return{result=>$r+0.0,from=>$f,to=>$t,value=>$v,category=>'temperature'}}my%m=(L=>1,mL=>0.001,gal=>3.78541,qt=>0.946353,pt=>0.473176,cup=>0.236588,fl_oz=>0.0295735);return{result=>$v*$m{$f}/$m{$t}+0.0,from=>$f,to=>$t,value=>$v,category=>'volume'}",
-      "description" : "Convert between measurement units: length (mile/km/m/ft/in), weight (kg/g/lb/oz), temperature (C/F/K), volume (L/gal/qt/cup/fl_oz).",
-      "inputSchema" : {
-         "type" : "object",
-         "properties" : {
-            "to" : {
-               "description" : "Target unit code",
-               "type" : "string"
-            },
-            "from" : {
-               "description" : "Source unit code",
-               "type" : "string"
-            },
-            "value" : {
-               "type" : "number",
-               "description" : "The value to convert"
-            }
-         },
-         "required" : [
+      "created_at": "2026-05-01 19:58:51",
+      "source": "runtime",
+      "description": "Convert between measurement units: length (mile/km/m/ft/in), weight (kg/g/lb/oz), temperature (C/F/K), volume (L/gal/qt/cup/fl_oz).",
+      "name": "convert_units",
+      "inputSchema": {
+         "required": [
             "value",
             "from",
             "to"
-         ]
+         ],
+         "type": "object",
+         "properties": {
+            "to": {
+               "type": "string",
+               "description": "Target unit code"
+            },
+            "value": {
+               "description": "The value to convert",
+               "type": "number"
+            },
+            "from": {
+               "description": "Source unit code",
+               "type": "string"
+            }
+         }
       },
-      "created_at" : "2026-05-01 19:58:51"
+      "code": "my($v,$f,$t)=@{$args}{qw(value from to)};die unless defined$v&&$f&&$t;my%c=(mile=>1,km=>1,m=>1,ft=>1,in=>1,yard=>1,kg=>2,g=>2,lb=>2,oz=>2,C=>3,F=>3,K=>3,L=>4,mL=>4,gal=>4,qt=>4,pt=>4,cup=>4,fl_oz=>4);die\"bad $f\"unless$c{$f};die\"mismatch\"unless$c{$f}eq$c{$t};if($c{$f}==1){my%m=(mile=>1609.344,km=>1000,m=>1,ft=>0.3048,in=>0.0254,yard=>0.9144);return{result=>$v*$m{$f}/$m{$t}+0.0,from=>$f,to=>$t,value=>$v,category=>'length'}}if($c{$f}==2){my%m=(kg=>1,g=>0.001,lb=>0.453592,oz=>0.0283495);return{result=>$v*$m{$f}/$m{$t}+0.0,from=>$f,to=>$t,value=>$v,category=>'weight'}}if($c{$f}==3){my$k=$f eq'K'?$v:$f eq'C'?$v+273.15:($v-32)*5/9+273.15;my$r=$t eq'K'?$k:$t eq'C'?$k-273.15:($k-273.15)*9/5+32;return{result=>$r+0.0,from=>$f,to=>$t,value=>$v,category=>'temperature'}}my%m=(L=>1,mL=>0.001,gal=>3.78541,qt=>0.946353,pt=>0.473176,cup=>0.236588,fl_oz=>0.0295735);return{result=>$v*$m{$f}/$m{$t}+0.0,from=>$f,to=>$t,value=>$v,category=>'volume'}"
    },
    {
-      "name" : "deploy_check",
-      "source" : "runtime",
-      "description" : "Check deployment health of a URL: HTTP status code, response time, SSL certificate expiry, robots.txt and sitemap.xml. Returns compact table.",
-      "code" : "my $url = $args->{url};\n$url =~ s|/+$||;\n$url = 'https://' . $url unless $url =~ m{^https?://}i;\n\n# ---- HTTP Status & Response Time ----\nmy $http_info = _safe_curl_get_code_and_time($url, 15);\nmy ($http_code, $resp_time) = split(':', $http_info);\n$http_code //= 'ERR';\nmy $rt = defined $resp_time && $resp_time ne '' ? sprintf('%.0f', $resp_time * 1000) : '-';\n\n# ---- SSL Expiry ----\nmy $ssl_expiry = '-';\nmy $verbose = _safe_curl_verbose($url, 12);\nif ($verbose =~ /expire date:\\s*(.+)/i) { $ssl_expiry = $1; }\n\n# ---- robots.txt ----\nmy $robots_code = _safe_curl_get_http_code($url . '/robots.txt', 8);\nmy $robots_status = ($robots_code eq '200') ? 'YES' : ($robots_code eq '404') ? 'no' : ($robots_code || 'ERR');\n\n# ---- sitemap.xml ----\nmy $sitemap_code = _safe_curl_get_http_code($url . '/sitemap.xml', 8);\nmy $sitemap_status = ($sitemap_code eq '200') ? 'YES' : ($sitemap_code eq '404') ? 'no' : ($sitemap_code || 'ERR');\n\n# ---- Format Table ----\nmy $title = 'Deploy Check: ' . $url;\nmy $sep = '-' x (length($title) + 4);\nmy $table = $sep . \"\\n| \" . $title . \" |\\n\" . $sep . \"\\n\" .\n    \"| Check           | Result\" . \"\\n\" .\n    \"|-----------------|----------------------------------------------\" . \"\\n\" .\n    \"| HTTP Status     | $http_code\" . \"\\n\" .\n    \"| Response Time   | $rt ms\" . \"\\n\" .\n    \"| SSL Expiry      | $ssl_expiry\" . \"\\n\" .\n    \"| robots.txt      | $robots_status\" . \"\\n\" .\n    \"| sitemap.xml     | $sitemap_status\" . \"\\n\" .\n    $sep;\n\nreturn {\n    url              => $url,\n    http_status      => $http_code + 0,\n    response_time_ms => $rt,\n    ssl_expiry       => $ssl_expiry,\n    robots_txt       => $robots_status,\n    sitemap_xml      => $sitemap_status,\n    table            => $table,\n};",
-      "created_at" : "2026-05-01 22:30:02",
-      "inputSchema" : {
-         "type" : "object",
-         "properties" : {
-            "url" : {
-               "type" : "string",
-               "description" : "URL to check (e.g. https://example.com)"
+      "created_at": "2026-07-06 17:44:25",
+      "description": "Returns the canonical display format for Cooksy recipe output. Call this tool once to learn how to format recipe data for the user.",
+      "source": "runtime",
+      "code": "my $text = \"Recipe Display Format\\n\\nFollow this format:\\n\\n1. IMAGE first: ![name](image_url)\\n   image_url = https://cooksy.teonet.dev/api/v1/image.get/{url-escaped-name}\\n\\n2. TITLE: **Recipe Name**\\n\\n3. METADATA:\\n   - Tip: <dish type>\\n   - Kalorijnost: <calories>\\n   - Opisanie: <description>\\n   - Vremya gotovki: <time> min\\n   - Porcii: <servings>\\n\\n4. INGREDIENTS: bullet list with em dash\\n   - ingredient name - quantity\\n\\n5. INSTRUCTIONS: numbered list (1. 2. 3.)\\n\\n6. CATEGORIES: comma-separated, prefixed with Kategorii:\\n\\nExample:\\n![](https://cooksy.teonet.dev/api/v1/image.get/Recipe-Name)\\n**Recipe Name**\\nTip: hot\\nOpisanie: ...\\nVremya gotovki: 30 min\\nPorcii: 4\\n\\nIngredienty:\\n- name - quantity\\n\\nInstrukcii:\\n1. Step one.\\n2. Step two.\\n\\nKategorii: cat1, cat2\";\nreturn { content => [{ type => \"text\", text => $text }] };",
+      "inputSchema": {
+         "properties": {},
+         "type": "object"
+      },
+      "name": "cooksy_recipe_display_format"
+   },
+   {
+      "source": "runtime",
+      "description": "Check deployment health of a URL: HTTP status code, response time, SSL certificate expiry, robots.txt and sitemap.xml. Returns compact table.",
+      "created_at": "2026-05-01 22:30:02",
+      "name": "deploy_check",
+      "inputSchema": {
+         "type": "object",
+         "properties": {
+            "url": {
+               "description": "URL to check (e.g. https://example.com)",
+               "type": "string"
             }
          },
-         "required" : [
+         "required": [
             "url"
          ]
-      }
+      },
+      "code": "my $url = $args->{url};\n$url =~ s|/+$||;\n$url = 'https://' . $url unless $url =~ m{^https?://}i;\n\n# ---- HTTP Status & Response Time ----\nmy $http_info = _safe_curl_get_code_and_time($url, 15);\nmy ($http_code, $resp_time) = split(':', $http_info);\n$http_code //= 'ERR';\nmy $rt = defined $resp_time && $resp_time ne '' ? sprintf('%.0f', $resp_time * 1000) : '-';\n\n# ---- SSL Expiry ----\nmy $ssl_expiry = '-';\nmy $verbose = _safe_curl_verbose($url, 12);\nif ($verbose =~ /expire date:\\s*(.+)/i) { $ssl_expiry = $1; }\n\n# ---- robots.txt ----\nmy $robots_code = _safe_curl_get_http_code($url . '/robots.txt', 8);\nmy $robots_status = ($robots_code eq '200') ? 'YES' : ($robots_code eq '404') ? 'no' : ($robots_code || 'ERR');\n\n# ---- sitemap.xml ----\nmy $sitemap_code = _safe_curl_get_http_code($url . '/sitemap.xml', 8);\nmy $sitemap_status = ($sitemap_code eq '200') ? 'YES' : ($sitemap_code eq '404') ? 'no' : ($sitemap_code || 'ERR');\n\n# ---- Format Table ----\nmy $title = 'Deploy Check: ' . $url;\nmy $sep = '-' x (length($title) + 4);\nmy $table = $sep . \"\\n| \" . $title . \" |\\n\" . $sep . \"\\n\" .\n    \"| Check           | Result\" . \"\\n\" .\n    \"|-----------------|----------------------------------------------\" . \"\\n\" .\n    \"| HTTP Status     | $http_code\" . \"\\n\" .\n    \"| Response Time   | $rt ms\" . \"\\n\" .\n    \"| SSL Expiry      | $ssl_expiry\" . \"\\n\" .\n    \"| robots.txt      | $robots_status\" . \"\\n\" .\n    \"| sitemap.xml     | $sitemap_status\" . \"\\n\" .\n    $sep;\n\nreturn {\n    url              => $url,\n    http_status      => $http_code + 0,\n    response_time_ms => $rt,\n    ssl_expiry       => $ssl_expiry,\n    robots_txt       => $robots_status,\n    sitemap_xml      => $sitemap_status,\n    table            => $table,\n};"
    },
    {
-      "created_at" : "2026-05-01 18:07:37",
-      "inputSchema" : {
-         "properties" : {
-            "base" : {
-               "description" : "Base currency code (default: USD)",
-               "type" : "string"
+      "code": "my $base   = $args->{base}   // 'USD';\nmy $target = $args->{target} // 'RUB';\nmy $r = _safe_http_get_json(\"https://api.exchangerate-api.com/v4/latest/$base\");\ndie \"HTTP error: $r->{status} - $r->{reason}\" unless $r->{success};\nmy $d = $r->{data};\nmy $rate = $d->{rates}{$target};\ndie \"Target currency '$target' not found.\" unless defined $rate;\nreturn {\n    base       => $base,\n    target     => $target,\n    rate       => $rate + 0.0,\n    date       => $d->{date},\n    source     => \"exchangerate-api.com\",\n};",
+      "name": "exchange_rate",
+      "inputSchema": {
+         "properties": {
+            "target": {
+               "type": "string",
+               "description": "Target currency code (default: RUB)"
             },
-            "target" : {
-               "description" : "Target currency code (default: RUB)",
-               "type" : "string"
+            "base": {
+               "type": "string",
+               "description": "Base currency code (default: USD)"
             }
          },
-         "type" : "object"
+         "type": "object"
       },
-      "code" : "my $base   = $args->{base}   // 'USD';\nmy $target = $args->{target} // 'RUB';\nmy $r = _safe_http_get_json(\"https://api.exchangerate-api.com/v4/latest/$base\");\ndie \"HTTP error: $r->{status} - $r->{reason}\" unless $r->{success};\nmy $d = $r->{data};\nmy $rate = $d->{rates}{$target};\ndie \"Target currency '$target' not found.\" unless defined $rate;\nreturn {\n    base       => $base,\n    target     => $target,\n    rate       => $rate + 0.0,\n    date       => $d->{date},\n    source     => \"exchangerate-api.com\",\n};",
-      "description" : "Get exchange rate between two currencies. Default: USD → RUB. Supports any ISO 4217 currency code.",
-      "source" : "import",
-      "name" : "exchange_rate"
+      "description": "Get exchange rate between two currencies. Default: USD \u2192 RUB. Supports any ISO 4217 currency code.",
+      "source": "import",
+      "created_at": "2026-05-01 18:07:37"
    },
    {
-      "name" : "hash_generate",
-      "source" : "runtime",
-      "description" : "Generate hash digests for text. Supports md5, sha1, sha256, sha512. Uses Digest::MD5 and Digest::SHA.",
-      "code" : "my $text      = $args->{text} or die \"Missing required parameter: text\";\nmy $algorithm = $args->{algorithm} // 'sha256';\nuse Digest::MD5;\nuse Digest::SHA;\nmy %algo_map = (md5 => 'MD5', sha1 => 'SHA-1', sha256 => 'SHA-256', sha512 => 'SHA-512');\nmy $digest_hex;\nif ($algorithm eq 'md5') {\n    $digest_hex = md5_hex($text);\n} elsif ($algorithm eq 'sha1') {\n    $digest_hex = sha1_hex($text);\n} elsif ($algorithm eq 'sha256') {\n    $digest_hex = sha256_hex($text);\n} else {\n    $digest_hex = sha512_hex($text);\n}\nreturn {\n    algorithm     => $algorithm,\n    digest_hex    => $digest_hex,\n    digest_length => length($digest_hex) * 4,\n    input_size    => length($text),\n};",
-      "created_at" : "2026-05-24 12:25:32",
-      "inputSchema" : {
-         "required" : [
-            "text"
-         ],
-         "properties" : {
-            "algorithm" : {
-               "type" : "string",
-               "description" : "Hash algorithm (default: sha256)",
-               "enum" : [
+      "source": "runtime",
+      "description": "Generate hash digests for text. Supports md5, sha1, sha256, sha512. Uses Digest::MD5 and Digest::SHA.",
+      "created_at": "2026-05-24 12:25:32",
+      "name": "hash_generate",
+      "inputSchema": {
+         "properties": {
+            "algorithm": {
+               "type": "string",
+               "description": "Hash algorithm (default: sha256)",
+               "enum": [
                   "md5",
                   "sha1",
                   "sha256",
                   "sha512"
                ]
             },
-            "text" : {
-               "type" : "string",
-               "description" : "Text content to hash"
+            "text": {
+               "description": "Text content to hash",
+               "type": "string"
             }
          },
-         "type" : "object"
+         "type": "object",
+         "required": [
+            "text"
+         ]
+      },
+      "code": "my $text      = $args->{text} or die \"Missing required parameter: text\";\nmy $algorithm = $args->{algorithm} // 'sha256';\nuse Digest::MD5;\nuse Digest::SHA;\nmy %algo_map = (md5 => 'MD5', sha1 => 'SHA-1', sha256 => 'SHA-256', sha512 => 'SHA-512');\nmy $digest_hex;\nif ($algorithm eq 'md5') {\n    $digest_hex = md5_hex($text);\n} elsif ($algorithm eq 'sha1') {\n    $digest_hex = sha1_hex($text);\n} elsif ($algorithm eq 'sha256') {\n    $digest_hex = sha256_hex($text);\n} else {\n    $digest_hex = sha512_hex($text);\n}\nreturn {\n    algorithm     => $algorithm,\n    digest_hex    => $digest_hex,\n    digest_length => length($digest_hex) * 4,\n    input_size    => length($text),\n};"
+   },
+   {
+      "created_at": "2026-06-27 21:30:00",
+      "description": "Generate image from text prompt using GPT Image 2. Returns base64 PNG data URL.",
+      "source": "runtime",
+      "code": "use MIME::Base64; my $p = $args->{prompt} or return {error=>\"prompt required\"}; my $k = $OPENAI_API_KEY or return {error=>\"no key\"}; my $t0 = time; my $b = qq({\"model\":\"gpt-image-2\",\"prompt\":) . _safe_json_encode($p,0) . qq(,\"n\":1,\"size\":\"1024x1024\"}); my $r = _safe_http_post(\"https://api.openai.com/v1/images/generations\",$b,\"Bearer $k\"); return{error=>\"HTTP $r->{status}\"} unless $r->{success}; my $d = _safe_json_decode($r->{content}); return{error=>\"no image\"} unless $d->{data}[0]{b64_json}; my $b64 = $d->{data}[0]{b64_json}; my $fname = \"img_\" . time . \".png\"; open(my $fh, \">:raw\", \"/srv/gallery/i/$fname\") or return{error=>\"cannot save: $!\"}; print $fh decode_base64($b64); close $fh; my $elapsed = time - $t0; print STDERR \"[image_gen] elapsed=${elapsed}s prompt=$p\n\"; return{url=>\"https://bmat.uk/i/$fname\",prompt=>$p,elapsed=>$elapsed};",
+      "name": "image_gen",
+      "inputSchema": {
+         "required": [
+            "prompt"
+         ],
+         "type": "object",
+         "properties": {
+            "prompt": {
+               "type": "string",
+               "description": "Text description of the image to generate"
+            }
+         }
       }
    },
    {
-      "name" : "image_gen",
-      "source" : "runtime",
-      "description" : "Generate image from text prompt using GPT Image 2. Returns base64 PNG data URL.",
-      "code" : "use MIME::Base64; my $p = $args->{prompt} or return {error=>\"prompt required\"}; my $k = $OPENAI_API_KEY or return {error=>\"no key\"}; my $b = qq({\"model\":\"gpt-image-2\",\"prompt\":)._safe_json_encode($p,0).qq(,\"n\":1,\"size\":\"1024x1024\"}); my $r = _safe_http_post(\"https://api.openai.com/v1/images/generations\",$b,\"Bearer $k\"); return{error=>\"HTTP $r->{status}\"} unless $r->{success}; my $d = _safe_json_decode($r->{content}); return{error=>\"no image\"} unless $d->{data}[0]{b64_json}; my $b64 = $d->{data}[0]{b64_json}; my $fname = \"img_\" . time . \".png\"; open(my $fh, \">:raw\", \"/srv/gallery/i/$fname\") or return{error=>\"cannot save: $!\"}; print $fh decode_base64($b64); close $fh; return{url=>\"https://bmat.uk/i/$fname\",prompt=>$p};",
-      "inputSchema" : {
-         "required" : [
-            "prompt"
-         ],
-         "properties" : {
-            "prompt" : {
-               "description" : "Text description of the image to generate",
-               "type" : "string"
-            }
-         },
-         "type" : "object"
-      },
-      "created_at" : "2026-06-27 21:30:00"
-   },
-   {
-      "code" : "my $op     = $args->{operation} or return { error => \"Missing required parameter: operation\" };\nmy $json   = $args->{json};\nmy $json2  = $args->{json2};\nmy $indent = $args->{indent} // 2;\nif ($op eq 'format') {\n    return { error => \"Missing required for format: json\" } unless defined $json;\n    my $decoded = _safe_json_decode($json);\n    return { error => \"Invalid JSON: \" . $decoded->{_error}, operation => 'format' } if (ref $decoded eq 'HASH' && exists $decoded->{_error});\n    my $formatted = _safe_json_encode($decoded, 1);\n    return { result => $formatted, operation => 'format', indent => $indent };\n}\nif ($op eq 'validate') {\n    return { error => \"Missing required for validate: json\" } unless defined $json;\n    my $decoded = _safe_json_decode($json);\n    my $valid = !(ref $decoded eq 'HASH' && exists $decoded->{_error});\n    my $err = $valid ? undef : $decoded->{_error};\n    return { valid => ($valid ? 1 : 0), error => $err, operation => 'validate' };\n}\nif ($op eq 'compress') {\n    return { error => \"Missing required for compress: json\" } unless defined $json;\n    my $decoded = _safe_json_decode($json);\n    return { error => \"Invalid JSON: \" . $decoded->{_error}, operation => 'compress' } if (ref $decoded eq 'HASH' && exists $decoded->{_error});\n    my $compressed = _safe_json_encode($decoded, 0);\n    chomp $compressed;\n    my $orig_len = length($json);\n    my $comp_len = length($compressed);\n    my $pct = $orig_len > 0 ? sprintf(\"%.1f\", (1 - $comp_len / $orig_len) * 100) : \"0.0\";\n    return { result => $compressed, original_size => $orig_len, compressed_size => $comp_len, compression_pct => $pct, operation => 'compress' };\n}\nif ($op eq 'diff') {\n    return { error => \"Missing required for diff: json and json2\" } unless defined $json && defined $json2;\n    my $d1 = _safe_json_decode($json);\n    return { error => \"First JSON invalid: \" . $d1->{_error}, operation => 'diff' } if (ref $d1 eq 'HASH' && exists $d1->{_error});\n    my $d2 = _safe_json_decode($json2);\n    return { error => \"Second JSON invalid: \" . $d2->{_error}, operation => 'diff' } if (ref $d2 eq 'HASH' && exists $d2->{_error});\n    my $json1_str = _safe_json_encode($d1, 0);\n    my $json2_str = _safe_json_encode($d2, 0);\n    if ($json1_str eq $json2_str) {\n        return { identical => 1, operation => 'diff' };\n    }\n    return { identical => 0, operation => 'diff', left => _safe_json_encode($d1, 1), right => _safe_json_encode($d2, 1) };\n}\nreturn { error => \"Unknown operation: $op. Supported: format, validate, compress, diff\" };",
-      "description" : "JSON operations: format, validate, compress, diff. Uses JSON::PP.",
-      "created_at" : "2026-05-24 12:25:32",
-      "inputSchema" : {
-         "required" : [
+      "description": "JSON operations: format, validate, compress, diff. Uses JSON::PP.",
+      "source": "runtime",
+      "created_at": "2026-05-24 12:25:32",
+      "name": "json_tool",
+      "inputSchema": {
+         "required": [
             "operation"
          ],
-         "properties" : {
-            "json2" : {
-               "type" : "string",
-               "description" : "Second JSON string (required for diff)"
-            },
-            "operation" : {
-               "type" : "string",
-               "description" : "JSON operation to perform",
-               "enum" : [
+         "type": "object",
+         "properties": {
+            "operation": {
+               "type": "string",
+               "description": "JSON operation to perform",
+               "enum": [
                   "format",
                   "validate",
                   "compress",
                   "diff"
                ]
             },
-            "json" : {
-               "type" : "string",
-               "description" : "JSON string to operate on (required for format, validate, compress)"
+            "indent": {
+               "description": "Indentation spaces for format (default: 2)",
+               "type": "integer"
             },
-            "indent" : {
-               "description" : "Indentation spaces for format (default: 2)",
-               "type" : "integer"
-            }
-         },
-         "type" : "object"
-      },
-      "source" : "runtime",
-      "name" : "json_tool"
-   },
-   {
-      "name" : "prompt_enhance",
-      "source" : "import",
-      "created_at" : "2026-05-01 18:20:18",
-      "inputSchema" : {
-         "type" : "object",
-         "properties" : {
-            "language" : {
-               "type" : "string",
-               "description" : "Output language: en, ru"
+            "json": {
+               "description": "JSON string to operate on (required for format, validate, compress)",
+               "type": "string"
             },
-            "tone" : {
-               "description" : "Tone: professional, casual, academic, creative",
-               "type" : "string"
-            },
-            "prompt" : {
-               "type" : "string",
-               "description" : "The raw user prompt to enhance"
-            },
-            "role" : {
-               "type" : "string",
-               "description" : "Optional role for the AI"
-            }
-         },
-         "required" : [
-            "prompt"
-         ]
-      },
-      "description" : "Enhance a raw user prompt into a well-structured prompt. Adds role, context, format instructions and constraints.",
-      "code" : "my $p = $args->{prompt} // \"\"; return {error => \"Prompt required\"} unless $p; my $r = $args->{role} // \"helpful assistant\"; my $t = $args->{tone} // \"professional\"; my $l = $args->{language} // \"en\"; my %tones = (professional => \"Be precise and well-structured.\",  casual => \"Be friendly and conversational.\",  academic => \"Be formal and scholarly.\",  creative => \"Be imaginative and vivid.\"); my $ti = $tones{$t} // $tones{professional}; my $newline = qq{\\n}; my $enhanced = qq{## Role${newline}You are $r.$newline${newline}## Tone${newline}$ti$newline${newline}## Task$newline$p$newline${newline}## Format$newline- Clear structure with headings.$newline- Ask if unclear.$newline${newline}## Constraints$newline- No apologies.$newline- No legal/medical advice.}; return {original => $p, enhanced => $enhanced, role => $r, tone => $t, language => $l, token_estimate => int(length($enhanced) / 4) + 1};"
-   },
-   {
-      "name" : "test_env",
-      "source" : "runtime",
-      "description" : "test env access",
-      "code" : "my $key = $OPENAI_API_KEY // \"UNDEF\";\nmy $model = $VISION_MODEL // \"UNDEF\";\nreturn { key_defined => ($key ne \"UNDEF\" ? 1 : 0), key_len => length($key), model => $model };",
-      "inputSchema" : {
-         "type" : "object",
-         "properties" : {}
-      },
-      "created_at" : "2026-06-25 19:50:19"
-   },
-   {
-      "created_at" : "2026-05-02 04:21:31",
-      "inputSchema" : {
-         "properties" : {
-            "unit" : {
-               "type" : "string",
-               "description" : "Unit: tokens, paragraphs, sentences (default: tokens)"
-            },
-            "chunk_size" : {
-               "description" : "Max tokens per chunk (default: 1000)",
-               "type" : "integer"
-            },
-            "text" : {
-               "description" : "Text to split into chunks",
-               "type" : "string"
-            },
-            "overlap" : {
-               "description" : "Overlap tokens between chunks (default: 200)",
-               "type" : "integer"
-            }
-         },
-         "type" : "object",
-         "required" : [
-            "text"
-         ]
-      },
-      "description" : "Split long text into chunks with overlap. Useful for RAG, summarization, processing large documents.",
-      "code" : "my $t = $args->{text} // \"\"; return {error => \"Text required\"} unless $t; my $cs = $args->{chunk_size} // 1000; my $ov = $args->{overlap} // 200; my $u = $args->{unit} // \"tokens\"; my @chunks; if ($u eq \"sentences\") { my @s = split(/(?<=[.!?])\\s+/, $t); my $i = 0; while ($i < @s) { my $c = \"\"; while ($i < @s && length($c) / 4 < $cs) { $c .= $s[$i] . \" \"; $i++ } push @chunks, $c } } else { push @chunks, $t } if ($ov >= $cs) { $cs = $ov + 1 }; my @result; for my $chunk (@chunks) { push @result, {chunk => $chunk, size => int(length($chunk) / 4) + 1 } } return {chunks => \\@result, total_chunks => scalar @chunks, unit => $u, original_size => int(length($t) / 4) + 1};",
-      "name" : "text_chunker",
-      "source" : "runtime"
-   },
-   {
-      "source" : "import",
-      "name" : "token_counter",
-      "created_at" : "2026-05-01 18:57:34",
-      "inputSchema" : {
-         "required" : [
-            "text"
-         ],
-         "properties" : {
-            "text" : {
-               "type" : "string",
-               "description" : "Text to count tokens in"
-            },
-            "model" : {
-               "type" : "string",
-               "description" : "Model family: claude, gpt, gemini (default: claude)"
-            }
-         },
-         "type" : "object"
-      },
-      "code" : "my $t = $args->{text} // \"\"; return {error => \"Text required\"} unless $t; my $m = $args->{model} // \"claude\"; my %limits = (claude => 200000, gpt => 128000, gemini => 1048576); my %prices_in = (claude => 3, gpt => \"2.5\", gemini => \"0.5\"); my %prices_out = (claude => 15, gpt => 10, gemini => \"1.5\"); my $limit = $limits{$m} // 200000; my $price_in = $prices_in{$m} // 3; my $price_out = $prices_out{$m} // 15; my $tokens = int(length($t) / 4) + 1; my $cost_in = ($tokens / 1000) * $price_in / 1000000; my $cost_out = ($tokens / 1000) * $price_out / 1000000; my $pct = sprintf(\"%.1f\", $tokens / $limit * 100); return {tokens => $tokens, model => $m, context_limit => $limit,  context_used_pct => $pct . \"%\",  estimated_cost_input => sprintf(\"$%.6f\", $cost_in),  estimated_cost_output => sprintf(\"$%.6f\", $cost_out),  characters => length($t)};",
-      "description" : "Count tokens in text for various LLMs (Claude, GPT, Gemini). Estimates token count, cost and % of context window."
-   },
-   {
-      "name" : "translate",
-      "source" : "import",
-      "description" : "Translate text between languages using MyMemory API. Supports 100+ languages.",
-      "code" : "my $text = $args->{text} or die \"Missing required parameter: text\";\nmy $src = $args->{source} // 'auto';\nmy $tgt = $args->{target} // 'ru';\nmy $pair = $src eq 'auto' ? $tgt : \"$src|$tgt\";\nmy $e = _uri_escape_utf8($text);\nmy $url = \"https://api.mymemory.translated.net/get?q=$e&langpair=$pair\";\nmy $r = _safe_http_get_json($url);\ndie \"HTTP error: $r->{status} - $r->{reason}\" unless $r->{success};\nmy $d = $r->{data};\nmy $translated = $d->{responseData}{translatedText} // '';\nmy $detected   = $d->{responseData}{detectedLanguage} // $src;\nmy $match      = ($d->{responseData}{match} // 0) + 0;\nreturn {\n    original_text   => $text,\n    translated_text => $translated,\n    source_lang     => $detected,\n    target_lang     => $tgt,\n    match_quality   => $match,\n};",
-      "created_at" : "2026-05-01 18:12:56",
-      "inputSchema" : {
-         "required" : [
-            "text"
-         ],
-         "properties" : {
-            "source" : {
-               "description" : "Source language code (default: auto), e.g. en, ru, de, fr, es",
-               "type" : "string"
-            },
-            "target" : {
-               "description" : "Target language code (default: ru), e.g. ru, en, de, fr, es",
-               "type" : "string"
-            },
-            "text" : {
-               "description" : "Text to translate",
-               "type" : "string"
-            }
-         },
-         "type" : "object"
-      }
-   },
-   {
-      "description" : "Get current weather for any city. Returns temperature, humidity, wind, and description.",
-      "code" : "my $city = $args->{city} or die \"Missing required parameter: 'city'\";\nmy $r = _safe_http_get_json(\"https://wttr.in/$city?format=j1\");\ndie \"HTTP error: $r->{status} - $r->{reason}\" unless $r->{success};\nmy $d = $r->{data};\nreturn {\n    requested_city => $city,\n    city           => ($d->{nearest_area}[0]{areaName}[0]{value} // $city),\n    country        => ($d->{nearest_area}[0]{country}[0]{value} // \"?\"),\n    temp_C         => ($d->{current_condition}[0]{temp_C} // \"?\") + 0,\n    feels_like_C   => ($d->{current_condition}[0]{FeelsLikeC} // \"?\") + 0,\n    humidity       => ($d->{current_condition}[0]{humidity} // \"?\") + 0,\n    wind_speed_kmh => ($d->{current_condition}[0]{windspeedKmph} // \"?\") + 0,\n    wind_dir       => ($d->{current_condition}[0]{winddir16Point} // \"?\"),\n    desc           => ($d->{current_condition}[0]{weatherDesc}[0]{value} // \"?\"),\n    obs_time       => ($d->{current_condition}[0]{observation_time} // \"?\"),\n};",
-      "inputSchema" : {
-         "required" : [
-            "city"
-         ],
-         "type" : "object",
-         "properties" : {
-            "city" : {
-               "type" : "string",
-               "description" : "City name (supports Cyrillic, e.g. Москва, Саратов)"
+            "json2": {
+               "description": "Second JSON string (required for diff)",
+               "type": "string"
             }
          }
       },
-      "created_at" : "2026-05-01 17:58:59",
-      "name" : "weather",
-      "source" : "import"
+      "code": "my $op     = $args->{operation} or return { error => \"Missing required parameter: operation\" };\nmy $json   = $args->{json};\nmy $json2  = $args->{json2};\nmy $indent = $args->{indent} // 2;\nif ($op eq 'format') {\n    return { error => \"Missing required for format: json\" } unless defined $json;\n    my $decoded = _safe_json_decode($json);\n    return { error => \"Invalid JSON: \" . $decoded->{_error}, operation => 'format' } if (ref $decoded eq 'HASH' && exists $decoded->{_error});\n    my $formatted = _safe_json_encode($decoded, 1);\n    return { result => $formatted, operation => 'format', indent => $indent };\n}\nif ($op eq 'validate') {\n    return { error => \"Missing required for validate: json\" } unless defined $json;\n    my $decoded = _safe_json_decode($json);\n    my $valid = !(ref $decoded eq 'HASH' && exists $decoded->{_error});\n    my $err = $valid ? undef : $decoded->{_error};\n    return { valid => ($valid ? 1 : 0), error => $err, operation => 'validate' };\n}\nif ($op eq 'compress') {\n    return { error => \"Missing required for compress: json\" } unless defined $json;\n    my $decoded = _safe_json_decode($json);\n    return { error => \"Invalid JSON: \" . $decoded->{_error}, operation => 'compress' } if (ref $decoded eq 'HASH' && exists $decoded->{_error});\n    my $compressed = _safe_json_encode($decoded, 0);\n    chomp $compressed;\n    my $orig_len = length($json);\n    my $comp_len = length($compressed);\n    my $pct = $orig_len > 0 ? sprintf(\"%.1f\", (1 - $comp_len / $orig_len) * 100) : \"0.0\";\n    return { result => $compressed, original_size => $orig_len, compressed_size => $comp_len, compression_pct => $pct, operation => 'compress' };\n}\nif ($op eq 'diff') {\n    return { error => \"Missing required for diff: json and json2\" } unless defined $json && defined $json2;\n    my $d1 = _safe_json_decode($json);\n    return { error => \"First JSON invalid: \" . $d1->{_error}, operation => 'diff' } if (ref $d1 eq 'HASH' && exists $d1->{_error});\n    my $d2 = _safe_json_decode($json2);\n    return { error => \"Second JSON invalid: \" . $d2->{_error}, operation => 'diff' } if (ref $d2 eq 'HASH' && exists $d2->{_error});\n    my $json1_str = _safe_json_encode($d1, 0);\n    my $json2_str = _safe_json_encode($d2, 0);\n    if ($json1_str eq $json2_str) {\n        return { identical => 1, operation => 'diff' };\n    }\n    return { identical => 0, operation => 'diff', left => _safe_json_encode($d1, 1), right => _safe_json_encode($d2, 1) };\n}\nreturn { error => \"Unknown operation: $op. Supported: format, validate, compress, diff\" };"
+   },
+   {
+      "code": "my $p = $args->{prompt} // \"\"; return {error => \"Prompt required\"} unless $p; my $r = $args->{role} // \"helpful assistant\"; my $t = $args->{tone} // \"professional\"; my $l = $args->{language} // \"en\"; my %tones = (professional => \"Be precise and well-structured.\",  casual => \"Be friendly and conversational.\",  academic => \"Be formal and scholarly.\",  creative => \"Be imaginative and vivid.\"); my $ti = $tones{$t} // $tones{professional}; my $newline = qq{\\n}; my $enhanced = qq{## Role${newline}You are $r.$newline${newline}## Tone${newline}$ti$newline${newline}## Task$newline$p$newline${newline}## Format$newline- Clear structure with headings.$newline- Ask if unclear.$newline${newline}## Constraints$newline- No apologies.$newline- No legal/medical advice.}; return {original => $p, enhanced => $enhanced, role => $r, tone => $t, language => $l, token_estimate => int(length($enhanced) / 4) + 1};",
+      "inputSchema": {
+         "type": "object",
+         "properties": {
+            "tone": {
+               "description": "Tone: professional, casual, academic, creative",
+               "type": "string"
+            },
+            "language": {
+               "type": "string",
+               "description": "Output language: en, ru"
+            },
+            "role": {
+               "description": "Optional role for the AI",
+               "type": "string"
+            },
+            "prompt": {
+               "type": "string",
+               "description": "The raw user prompt to enhance"
+            }
+         },
+         "required": [
+            "prompt"
+         ]
+      },
+      "name": "prompt_enhance",
+      "created_at": "2026-05-01 18:20:18",
+      "description": "Enhance a raw user prompt into a well-structured prompt. Adds role, context, format instructions and constraints.",
+      "source": "import"
+   },
+   {
+      "source": "runtime",
+      "description": "test env access",
+      "created_at": "2026-06-25 19:50:19",
+      "name": "test_env",
+      "inputSchema": {
+         "properties": {},
+         "type": "object"
+      },
+      "code": "my $key = $OPENAI_API_KEY // \"UNDEF\";\nmy $model = $VISION_MODEL // \"UNDEF\";\nreturn { key_defined => ($key ne \"UNDEF\" ? 1 : 0), key_len => length($key), model => $model };"
+   },
+   {
+      "inputSchema": {
+         "properties": {
+            "overlap": {
+               "description": "Overlap tokens between chunks (default: 200)",
+               "type": "integer"
+            },
+            "unit": {
+               "type": "string",
+               "description": "Unit: tokens, paragraphs, sentences (default: tokens)"
+            },
+            "text": {
+               "description": "Text to split into chunks",
+               "type": "string"
+            },
+            "chunk_size": {
+               "type": "integer",
+               "description": "Max tokens per chunk (default: 1000)"
+            }
+         },
+         "type": "object",
+         "required": [
+            "text"
+         ]
+      },
+      "name": "text_chunker",
+      "code": "my $t = $args->{text} // \"\"; return {error => \"Text required\"} unless $t; my $cs = $args->{chunk_size} // 1000; my $ov = $args->{overlap} // 200; my $u = $args->{unit} // \"tokens\"; my @chunks; if ($u eq \"sentences\") { my @s = split(/(?<=[.!?])\\s+/, $t); my $i = 0; while ($i < @s) { my $c = \"\"; while ($i < @s && length($c) / 4 < $cs) { $c .= $s[$i] . \" \"; $i++ } push @chunks, $c } } else { push @chunks, $t } if ($ov >= $cs) { $cs = $ov + 1 }; my @result; for my $chunk (@chunks) { push @result, {chunk => $chunk, size => int(length($chunk) / 4) + 1 } } return {chunks => \\@result, total_chunks => scalar @chunks, unit => $u, original_size => int(length($t) / 4) + 1};",
+      "source": "runtime",
+      "description": "Split long text into chunks with overlap. Useful for RAG, summarization, processing large documents.",
+      "created_at": "2026-05-02 04:21:31"
+   },
+   {
+      "code": "my $t = $args->{text} // \"\"; return {error => \"Text required\"} unless $t; my $m = $args->{model} // \"claude\"; my %limits = (claude => 200000, gpt => 128000, gemini => 1048576); my %prices_in = (claude => 3, gpt => \"2.5\", gemini => \"0.5\"); my %prices_out = (claude => 15, gpt => 10, gemini => \"1.5\"); my $limit = $limits{$m} // 200000; my $price_in = $prices_in{$m} // 3; my $price_out = $prices_out{$m} // 15; my $tokens = int(length($t) / 4) + 1; my $cost_in = ($tokens / 1000) * $price_in / 1000000; my $cost_out = ($tokens / 1000) * $price_out / 1000000; my $pct = sprintf(\"%.1f\", $tokens / $limit * 100); return {tokens => $tokens, model => $m, context_limit => $limit,  context_used_pct => $pct . \"%\",  estimated_cost_input => sprintf(\"$%.6f\", $cost_in),  estimated_cost_output => sprintf(\"$%.6f\", $cost_out),  characters => length($t)};",
+      "name": "token_counter",
+      "inputSchema": {
+         "properties": {
+            "model": {
+               "description": "Model family: claude, gpt, gemini (default: claude)",
+               "type": "string"
+            },
+            "text": {
+               "description": "Text to count tokens in",
+               "type": "string"
+            }
+         },
+         "type": "object",
+         "required": [
+            "text"
+         ]
+      },
+      "description": "Count tokens in text for various LLMs (Claude, GPT, Gemini). Estimates token count, cost and % of context window.",
+      "source": "import",
+      "created_at": "2026-05-01 18:57:34"
+   },
+   {
+      "name": "translate",
+      "inputSchema": {
+         "required": [
+            "text"
+         ],
+         "properties": {
+            "target": {
+               "type": "string",
+               "description": "Target language code (default: ru), e.g. ru, en, de, fr, es"
+            },
+            "source": {
+               "type": "string",
+               "description": "Source language code (default: auto), e.g. en, ru, de, fr, es"
+            },
+            "text": {
+               "type": "string",
+               "description": "Text to translate"
+            }
+         },
+         "type": "object"
+      },
+      "code": "my $text = $args->{text} or die \"Missing required parameter: text\";\nmy $src = $args->{source} // 'auto';\nmy $tgt = $args->{target} // 'ru';\nmy $pair = $src eq 'auto' ? $tgt : \"$src|$tgt\";\nmy $e = _uri_escape_utf8($text);\nmy $url = \"https://api.mymemory.translated.net/get?q=$e&langpair=$pair\";\nmy $r = _safe_http_get_json($url);\ndie \"HTTP error: $r->{status} - $r->{reason}\" unless $r->{success};\nmy $d = $r->{data};\nmy $translated = $d->{responseData}{translatedText} // '';\nmy $detected   = $d->{responseData}{detectedLanguage} // $src;\nmy $match      = ($d->{responseData}{match} // 0) + 0;\nreturn {\n    original_text   => $text,\n    translated_text => $translated,\n    source_lang     => $detected,\n    target_lang     => $tgt,\n    match_quality   => $match,\n};",
+      "description": "Translate text between languages using MyMemory API. Supports 100+ languages.",
+      "source": "import",
+      "created_at": "2026-05-01 18:12:56"
+   },
+   {
+      "created_at": "2026-05-01 17:58:59",
+      "source": "import",
+      "description": "Get current weather for any city. Returns temperature, humidity, wind, and description.",
+      "code": "my $city = $args->{city} or die \"Missing required parameter: 'city'\";\nmy $r = _safe_http_get_json(\"https://wttr.in/$city?format=j1\");\ndie \"HTTP error: $r->{status} - $r->{reason}\" unless $r->{success};\nmy $d = $r->{data};\nreturn {\n    requested_city => $city,\n    city           => ($d->{nearest_area}[0]{areaName}[0]{value} // $city),\n    country        => ($d->{nearest_area}[0]{country}[0]{value} // \"?\"),\n    temp_C         => ($d->{current_condition}[0]{temp_C} // \"?\") + 0,\n    feels_like_C   => ($d->{current_condition}[0]{FeelsLikeC} // \"?\") + 0,\n    humidity       => ($d->{current_condition}[0]{humidity} // \"?\") + 0,\n    wind_speed_kmh => ($d->{current_condition}[0]{windspeedKmph} // \"?\") + 0,\n    wind_dir       => ($d->{current_condition}[0]{winddir16Point} // \"?\"),\n    desc           => ($d->{current_condition}[0]{weatherDesc}[0]{value} // \"?\"),\n    obs_time       => ($d->{current_condition}[0]{observation_time} // \"?\"),\n};",
+      "inputSchema": {
+         "required": [
+            "city"
+         ],
+         "properties": {
+            "city": {
+               "type": "string",
+               "description": "City name (supports Cyrillic, e.g. \u041c\u043e\u0441\u043a\u0432\u0430, \u0421\u0430\u0440\u0430\u0442\u043e\u0432)"
+            }
+         },
+         "type": "object"
+      },
+      "name": "weather"
    }
 ]
