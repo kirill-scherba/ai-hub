@@ -1,0 +1,52 @@
+# Release for the MCP servers that live inside this repository.
+#
+# Each tool under tools/ is a standalone Perl MCP server. A tag packages every one of them as its own
+# archive, so a distribution catalog can point at "ai-hub deploy-check 1.0.0" without needing a separate
+# repository per script.
+name: tools-release
+
+on:
+  push:
+    tags: ['tools-v*']
+
+permissions:
+  contents: write
+
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check every server compiles
+        run: |
+          set -euo pipefail
+          fail=0
+          for f in tools/*-mcp.pl; do
+            if ! perl -c "$f" 2>/dev/null; then
+              echo "syntax error: $f"; fail=1
+            fi
+          done
+          exit $fail
+
+      - name: Pack each tool
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#tools-v}"
+          for f in tools/*-mcp.pl; do
+            name="$(basename "$f" .pl)"        # deploy-check-mcp
+            short="${name%-mcp}"               # deploy-check
+            zip="${short}_${tag}.zip"
+            mkdir -p "pack/$short"
+            cp "$f" "pack/$short/"
+            (cd "pack/$short" && zip -q "../../$zip" "$(basename "$f")")
+            sha256sum "$zip" > "$zip.sha256"
+            cat "$zip.sha256"
+          done
+          ls -la *.zip | head -20
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            *.zip
+            *.zip.sha256

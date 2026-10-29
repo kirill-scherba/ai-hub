@@ -266,7 +266,7 @@ while (my $line = <STDIN>) {
                             },
                             model => {
                                 type        => 'string',
-                                description => 'Model to use: gpt-4o-mini (OpenAI, default), kimi-k2.7-code:cloud, minimax-m3:cloud, gemma4:cloud, gemma4:latest, llama3.2-vision, etc.',
+                                description => 'Model to use: gpt-4o-mini (OpenAI, default) for fast results on ordinary tasks; kimi-k2.7-code:cloud for a balance of speed and detail; deepseek-v4.1-flash:cloud for maximum detail.',
                             },
                         },
                     },

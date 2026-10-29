@@ -5,13 +5,15 @@
 use strict;
 use warnings;
 use utf8;
-use JSON;
+# JSON::PP is core: the tool also runs inside the portable Perl that AnyText installs, where a CPAN
+# module may be absent.
+use JSON::PP;
 
 binmode(STDIN,  ":utf8");
 binmode(STDOUT, ":utf8");
 binmode(STDERR, ":utf8");
 
-my $json = JSON->new->allow_nonref;
+my $json = JSON::PP->new->allow_nonref;
 
 sub respond {
     my ($id, $result) = @_;

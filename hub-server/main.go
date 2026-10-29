@@ -260,7 +260,8 @@ func main() {
 	}
 	defer kv.Close()
 
-	addr := fmt.Sprintf(":%d", port)
+	// Loopback: the hub is used by local agents and by nginx, never by ip:port from outside.
+	addr := fmt.Sprintf("127.0.0.1:%d", port)
 	log.Printf("🚀 AI Hub Server starting on %s", addr)
 	log.Printf("   Data directory: %s", dataDir)
 	log.Printf("   Embeddings: %s", map[bool]string{true: "enabled", false: "unavailable (Ollama?)"}[kv != nil])
