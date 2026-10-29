@@ -1,0 +1,83 @@
+{
+  "servers": [
+    {
+      "name": "deploy-check",
+      "asset_base": "deploy-check",
+      "install": "script",
+      "command": [
+        "deploy-check-mcp.pl"
+      ],
+      "entries": {
+        "any": "deploy-check-mcp.pl"
+      },
+      "category": "web",
+      "title": {
+        "ru": "Проверка деплоя",
+        "en": "Deploy check"
+      },
+      "description": {
+        "ru": "Здоровье сайта: код ответа, время, срок SSL, robots.txt и sitemap.xml.",
+        "en": "Site health: status code, response time, SSL expiry, robots.txt and sitemap.xml."
+      },
+      "docs": "https://github.com/kirill-scherba/ai-hub#readme"
+    },
+    {
+      "name": "cloudflare-mcp",
+      "asset_base": "cloudflare",
+      "install": "script",
+      "command": [
+        "cloudflare-mcp.pl"
+      ],
+      "entries": {
+        "any": "cloudflare-mcp.pl"
+      },
+      "category": "infra",
+      "title": {
+        "ru": "Cloudflare",
+        "en": "Cloudflare"
+      },
+      "description": {
+        "ru": "DNS-записи и зоны Cloudflare.",
+        "en": "Cloudflare DNS records and zones."
+      },
+      "settings": [
+        {
+          "key": "CLOUDFLARE_API_TOKEN",
+          "label": "API-токен",
+          "hint": "Cloudflare → My Profile → API Tokens",
+          "secret": true
+        }
+      ],
+      "docs": "https://github.com/kirill-scherba/ai-hub#readme"
+    },
+    {
+      "name": "vision-mcp",
+      "asset_base": "vision",
+      "install": "script",
+      "command": [
+        "vision-mcp.pl"
+      ],
+      "entries": {
+        "any": "vision-mcp.pl"
+      },
+      "category": "media",
+      "title": {
+        "ru": "Зрение",
+        "en": "Vision"
+      },
+      "description": {
+        "ru": "Разбор изображения: OpenAI или локальная Ollama.",
+        "en": "Image analysis via OpenAI or a local Ollama."
+      },
+      "settings": [
+        {
+          "key": "OPENAI_API_KEY",
+          "label": "ключ OpenAI (или OLLAMA_URL)",
+          "hint": "platform.openai.com → API keys",
+          "secret": true
+        }
+      ],
+      "docs": "https://github.com/kirill-scherba/ai-hub#readme"
+    }
+  ]
+}
