@@ -1,9 +1,15 @@
 #!/usr/bin/env perl
-# vision-mcp.pl — MCP server for vision_analyze tool
-# Analyzes images using OpenAI Vision API (GPT-4o-mini)
-# Usage: standalone MCP server (started by opencode as external MCP)
+# vision-mcp.pl — MCP server for the image tools: vision_analyze and image_gen
+# Analyzes images using OpenAI Vision API (GPT-4o-mini) or a local Ollama,
+# and generates images from a text prompt using the OpenAI Images API.
+# Usage: standalone MCP server (started by opencode or the gateway as an external MCP)
 #
-# Env: OPENAI_API_KEY (required), VISION_MODEL (optional, default: gpt-4o-mini)
+# Env: OPENAI_API_KEY (required for OpenAI models), VISION_MODEL (optional, default: gpt-4o-mini)
+#      IMAGE_DIR (optional, default: <home>/Pictures/anytext), IMAGE_BASE_URL (optional: public URL
+#      of that folder), IMAGE_MODEL (optional, default: gpt-image-2), IMAGE_SIZE (optional, 1024x1024)
+#
+# Both tools need a model key, which is exactly why they live in their own server and not in the
+# tool generator: a key belongs to the server that uses it, not to a sandbox that runs arbitrary code.
 
 use strict;
 use warnings;
@@ -41,22 +47,23 @@ sub _compress_image {
 }
 
 sub _http_post_json {
-    my ($url, $payload, $auth_header) = @_;
+    my ($url, $payload, $auth_header, $timeout) = @_;
+    $timeout //= 120;
     my $body = $json->encode($payload);
     my $tmpfile = "/tmp/vision_req_$$.json";
     open(my $fh, '>:utf8', $tmpfile) or die "Cannot write $tmpfile: $!";
     print $fh $body;
     close $fh;
 
-    my @curl = ('curl', '-sS', '--max-time', '120', '-X', 'POST',
+    my @curl = ('curl', '-sS', '--max-time', $timeout, '-X', 'POST',
                 '-H', 'Content-Type: application/json', '-d', '@' . $tmpfile);
     push @curl, '-H', $auth_header if $auth_header;
     push @curl, '-o', '-', '-w', "\n%{http_code}\n", $url;
 
-    open(my $fh, '-|', @curl) or die "Failed to execute curl";
+    open(my $pipe, '-|', @curl) or die "Failed to execute curl";
     local $/;
-    my $all = <$fh>;
-    close $fh;
+    my $all = <$pipe>;
+    close $pipe;
     unlink $tmpfile;
     utf8::decode($all) if $all;
     my @parts = split /\n/, $all;
@@ -209,6 +216,60 @@ sub do_vision_analyze {
     }
 }
 
+# image_dir is where generated pictures are written. The default is a folder a person can find on
+# their own; IMAGE_DIR moves it, IMAGE_BASE_URL turns the file name into a link for a folder that is
+# published (a local folder has no address, and inventing one would be a lie).
+sub image_dir {
+    my $dir = $ENV{IMAGE_DIR};
+    unless ($dir) {
+        my $home = $ENV{HOME} // $ENV{USERPROFILE} // '.';
+        $dir = "$home/Pictures/anytext";
+    }
+    mkdir $dir unless -d $dir;
+    return $dir;
+}
+
+sub do_image_gen {
+    my ($args) = @_;
+    my $prompt = $args->{prompt} // '';
+    die "Missing required: 'prompt'" unless $prompt =~ /\S/;
+    my $model   = $args->{model} // $ENV{IMAGE_MODEL} // 'gpt-image-2';
+    my $size    = $args->{size}  // $ENV{IMAGE_SIZE}  // '1024x1024';
+    my $api_key = $ENV{OPENAI_API_KEY} or die "OPENAI_API_KEY not set for image generation";
+
+    my $started = time;
+    my ($status, $content) = _http_post_json(
+        'https://api.openai.com/v1/images/generations',
+        { model => $model, prompt => $prompt, n => 1, size => $size },
+        "Authorization: Bearer $api_key",
+        600,    # an image takes minutes, not seconds
+    );
+    die "OpenAI Images API error (HTTP $status)" unless $status eq '200';
+
+    my $data = eval { $json->decode($content) };
+    die "OpenAI Images API: bad response" unless $data;
+    my $b64 = $data->{data}[0]{b64_json}
+        or die "OpenAI Images API returned no image (only base64 output is supported)";
+
+    my $dir  = image_dir();
+    my $name = 'img_' . time . '.png';
+    my $path = "$dir/$name";
+    open(my $fh, '>:raw', $path) or die "Cannot write $path ($!)";
+    print $fh decode_base64($b64);
+    close $fh;
+
+    my $result = {
+        path    => $path,
+        prompt  => $prompt,
+        model   => $model,
+        size    => $size,
+        elapsed => time - $started,
+    };
+    my $base = $ENV{IMAGE_BASE_URL};
+    $result->{url} = "$base/$name" if $base;
+    return $result;
+}
+
 # MCP Main Loop
 while (my $line = <STDIN>) {
     chomp $line;
@@ -271,6 +332,28 @@ while (my $line = <STDIN>) {
                         },
                     },
                 },
+                {
+                    name        => 'image_gen',
+                    description => 'Generate an image from a text prompt (OpenAI Images API) and save it as a PNG. Returns the local path and, when the folder is published, a URL.',
+                    inputSchema => {
+                        type       => 'object',
+                        properties => {
+                            prompt => {
+                                type        => 'string',
+                                description => 'Text description of the image to generate',
+                            },
+                            model => {
+                                type        => 'string',
+                                description => 'Image model (default: gpt-image-2)',
+                            },
+                            size => {
+                                type        => 'string',
+                                description => 'Image size, e.g. 1024x1024 (default) or 1536x1024',
+                            },
+                        },
+                        required => ['prompt'],
+                    },
+                },
             ],
         });
     }
@@ -291,6 +374,21 @@ while (my $line = <STDIN>) {
                 my $err = $@;
                 chomp $err;
                 respond_error($id, -32603, "vision_analyze error: $err");
+            }
+        }
+        elsif ($tool_name eq 'image_gen') {
+            eval {
+                my $result = do_image_gen($tool_args);
+                respond($id, {
+                    content => [
+                        { type => 'text', text => $json->encode($result) },
+                    ],
+                });
+            };
+            if ($@) {
+                my $err = $@;
+                chomp $err;
+                respond_error($id, -32603, "image_gen error: $err");
             }
         }
         else {

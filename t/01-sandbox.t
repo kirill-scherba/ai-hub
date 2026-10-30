@@ -42,14 +42,14 @@ eval {
 };
 ok($@, 'backtick is blocked') or diag("backtick was NOT blocked! Security issue!");
 
-# Test 6: File open is permitted (for image_gen temporary files)
+# Test 6: File open is permitted (generated tools may save their output)
 # open() is intentionally allowed in the sandbox via $safe->permit(qw(open close print))
 # The sandbox controls access at the file system level, not the Perl opcode level.
 my $code_open = 'open(my $fh, ">", "/tmp/hacked"); return { ok => 1 };';
 eval {
     compile_in_safe($code_open);
 };
-ok(!$@, 'file open is permitted (by design for image_gen)') or diag("file open should compile: $@");
+ok(!$@, 'file open is permitted (generated tools may save output)') or diag("file open should compile: $@");
 
 # Test 7: Blocked — unauthorized module
 my $bad_code_module = 'use LWP::Simple; return { ok => 1 };';

@@ -131,25 +131,6 @@
     "name": "hash_generate"
   },
   {
-    "created_at": "2026-06-27 21:30:00",
-    "code": "use MIME::Base64; my $p = $args->{prompt} or return {error=>\"prompt required\"}; my $k = $OPENAI_API_KEY or return {error=>\"no key\"}; my $t0 = time; my $b = qq({\"model\":\"gpt-image-2\",\"prompt\":) . _safe_json_encode($p,0) . qq(,\"n\":1,\"size\":\"1024x1024\"}); my $r = _safe_http_post(\"https://api.openai.com/v1/images/generations\",$b,\"Bearer $k\"); return{error=>\"HTTP $r->{status}\"} unless $r->{success}; my $d = _safe_json_decode($r->{content}); return{error=>\"no image\"} unless $d->{data}[0]{b64_json}; my $b64 = $d->{data}[0]{b64_json}; my $fname = \"img_\" . time . \".png\"; open(my $fh, \">:raw\", \"/srv/gallery/i/$fname\") or return{error=>\"cannot save: $!\"}; print $fh decode_base64($b64); close $fh; my $elapsed = time - $t0; print STDERR \"[image_gen] elapsed=${elapsed}s prompt=$p\n\"; return{url=>\"https://bmat.uk/i/$fname\",prompt=>$p,elapsed=>$elapsed};",
-    "inputSchema": {
-      "properties": {
-        "prompt": {
-          "description": "Text description of the image to generate",
-          "type": "string"
-        }
-      },
-      "required": [
-        "prompt"
-      ],
-      "type": "object"
-    },
-    "description": "Generate image from text prompt using GPT Image 2. Returns image URL. IMPORTANT: after generation, save description and tags into gallery metadata.",
-    "name": "image_gen",
-    "source": "runtime"
-  },
-  {
     "code": "my $op     = $args->{operation} or return { error => \"Missing required parameter: operation\" };\nmy $json   = $args->{json};\nmy $json2  = $args->{json2};\nmy $indent = $args->{indent} // 2;\nif ($op eq 'format') {\n    return { error => \"Missing required for format: json\" } unless defined $json;\n    my $decoded = _safe_json_decode($json);\n    return { error => \"Invalid JSON: \" . $decoded->{_error}, operation => 'format' } if (ref $decoded eq 'HASH' && exists $decoded->{_error});\n    my $formatted = _safe_json_encode($decoded, 1);\n    return { result => $formatted, operation => 'format', indent => $indent };\n}\nif ($op eq 'validate') {\n    return { error => \"Missing required for validate: json\" } unless defined $json;\n    my $decoded = _safe_json_decode($json);\n    my $valid = !(ref $decoded eq 'HASH' && exists $decoded->{_error});\n    my $err = $valid ? undef : $decoded->{_error};\n    return { valid => ($valid ? 1 : 0), error => $err, operation => 'validate' };\n}\nif ($op eq 'compress') {\n    return { error => \"Missing required for compress: json\" } unless defined $json;\n    my $decoded = _safe_json_decode($json);\n    return { error => \"Invalid JSON: \" . $decoded->{_error}, operation => 'compress' } if (ref $decoded eq 'HASH' && exists $decoded->{_error});\n    my $compressed = _safe_json_encode($decoded, 0);\n    chomp $compressed;\n    my $orig_len = length($json);\n    my $comp_len = length($compressed);\n    my $pct = $orig_len > 0 ? sprintf(\"%.1f\", (1 - $comp_len / $orig_len) * 100) : \"0.0\";\n    return { result => $compressed, original_size => $orig_len, compressed_size => $comp_len, compression_pct => $pct, operation => 'compress' };\n}\nif ($op eq 'diff') {\n    return { error => \"Missing required for diff: json and json2\" } unless defined $json && defined $json2;\n    my $d1 = _safe_json_decode($json);\n    return { error => \"First JSON invalid: \" . $d1->{_error}, operation => 'diff' } if (ref $d1 eq 'HASH' && exists $d1->{_error});\n    my $d2 = _safe_json_decode($json2);\n    return { error => \"Second JSON invalid: \" . $d2->{_error}, operation => 'diff' } if (ref $d2 eq 'HASH' && exists $d2->{_error});\n    my $json1_str = _safe_json_encode($d1, 0);\n    my $json2_str = _safe_json_encode($d2, 0);\n    if ($json1_str eq $json2_str) {\n        return { identical => 1, operation => 'diff' };\n    }\n    return { identical => 0, operation => 'diff', left => _safe_json_encode($d1, 1), right => _safe_json_encode($d2, 1) };\n}\nreturn { error => \"Unknown operation: $op. Supported: format, validate, compress, diff\" };",
     "created_at": "2026-05-24 12:25:32",
     "inputSchema": {

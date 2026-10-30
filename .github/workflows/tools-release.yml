@@ -22,12 +22,26 @@ jobs:
         run: |
           set -euo pipefail
           fail=0
-          for f in tools/*-mcp.pl; do
+          for f in tools/*-mcp.pl generative-mcp-hub.pl; do
             if ! perl -c "$f" 2>/dev/null; then
               echo "syntax error: $f"; fail=1
             fi
           done
           exit $fail
+
+      - name: Pack the hub itself
+        # The hub is the server, not one of the tools it manages, so it does not live under tools/ and
+        # is not caught by the loop below. It is shipped together with tools.json: the registry is what
+        # an installation starts from, and a hub archive without it would start empty.
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#tools-v}"
+          zip="ai-hub_${tag}.zip"
+          mkdir -p pack/ai-hub
+          cp generative-mcp-hub.pl tools.json pack/ai-hub/
+          (cd pack/ai-hub && zip -q "../../$zip" generative-mcp-hub.pl tools.json)
+          sha256sum "$zip" > "$zip.sha256"
+          cat "$zip.sha256"
 
       - name: Pack each tool
         run: |

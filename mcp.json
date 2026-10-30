@@ -1,6 +1,27 @@
 {
   "servers": [
     {
+      "name": "ai-hub",
+      "asset_base": "ai-hub",
+      "install": "script",
+      "command": [
+        "generative-mcp-hub.pl"
+      ],
+      "entries": {
+        "any": "generative-mcp-hub.pl"
+      },
+      "category": "dev",
+      "title": {
+        "ru": "Генератор инструментов",
+        "en": "Tool generator"
+      },
+      "description": {
+        "ru": "Агент пишет MCP-инструменты на Perl, и они сразу доступны: реестр лежит в tools.json рядом с сервером. Полный локальный набор инструментов в комплекте, внешний хаб не нужен.",
+        "en": "The agent writes MCP tools in Perl and they are available at once: the registry lives in tools.json next to the server. A full local tool set ships with it, no external hub needed."
+      },
+      "docs": "https://github.com/kirill-scherba/ai-hub#readme"
+    },
+    {
       "name": "deploy-check",
       "asset_base": "deploy-check",
       "install": "script",
@@ -62,12 +83,12 @@
       },
       "category": "media",
       "title": {
-        "ru": "Зрение",
-        "en": "Vision"
+        "ru": "Зрение и картинки",
+        "en": "Vision and images"
       },
       "description": {
-        "ru": "Разбор изображения: OpenAI или локальная Ollama.",
-        "en": "Image analysis via OpenAI or a local Ollama."
+        "ru": "Разбор изображения (OpenAI или локальная Ollama) и генерация картинки по описанию. Один сервер на всё, чему нужен ключ модели.",
+        "en": "Image analysis (OpenAI or a local Ollama) and image generation from a prompt. One server for everything that needs a model key."
       },
       "settings": [
         {
@@ -77,6 +98,27 @@
           "secret": true
         }
       ],
+      "docs": "https://github.com/kirill-scherba/ai-hub#readme"
+    },
+    {
+      "name": "image-compress",
+      "asset_base": "image-compress",
+      "install": "script",
+      "command": [
+        "image-compress-mcp.pl"
+      ],
+      "entries": {
+        "any": "image-compress-mcp.pl"
+      },
+      "category": "media",
+      "title": {
+        "ru": "Сжатие картинок",
+        "en": "Image compression"
+      },
+      "description": {
+        "ru": "Сжать картинку до заданного размера (по умолчанию 1 МБ): файл или ссылка. Нужен ImageMagick.",
+        "en": "Compress an image to a target size (default 1 MB): a file or a link. Needs ImageMagick."
+      },
       "docs": "https://github.com/kirill-scherba/ai-hub#readme"
     }
   ]

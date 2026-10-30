@@ -33,6 +33,19 @@ It consists of two components:
   - **hub_pull** — download a tool from the Hub and install it locally
   - **hub_list** — list tools available on the Hub
 - Flags: `--hub-url <URL>`, `AI_HUB_SERVER_URL`
+- The four `hub_*` tools are advertised **only when a hub is configured**. A distribution install has no
+  hub, and four tools whose only answer is "Hub Server not configured" are worse than absent.
+
+### 3. **Servers shipped next to the hub** (`tools/`)
+
+Each `tools/<name>-mcp.pl` is a standalone MCP server with its own archive, declared in `mcp.json` at the
+repository root and packaged by `.github/workflows/tools-release.yml` on a `tools-v*` tag. The hub itself
+is packaged there too (`ai-hub_<version>.zip` = `generative-mcp-hub.pl` + `tools.json`), so an installation
+starts with the full local tool set.
+
+The split between the two is a rule, not a preference: **a server that needs a model key is not the hub**.
+`vision_analyze` and `image_gen` therefore live in `tools/vision-mcp.pl` (env `OPENAI_API_KEY`,
+`IMAGE_DIR`, `IMAGE_BASE_URL`), while the hub runs generated code in a sandbox and holds no keys.
 
 ## Architecture
 

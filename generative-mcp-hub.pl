@@ -988,65 +988,70 @@ sub get_all_tool_definitions {
             required => ["name"],
         },
     };
-    push @tools, {
-        name        => "hub_publish",
-        description => "Publish a local generated tool to the Hub Server for sharing with other MCP instances.",
-        inputSchema => {
-            type => "object",
-            properties => {
-                name => {
-                    type => "string",
-                    description => "Name of the local tool to publish.",
+    # The Hub Server is optional: an installation that has none (the shipped default) must not offer
+    # four tools that can only answer "Hub Server not configured". A client shows what tools/list
+    # returns, so the honest list is the one that works.
+    if (defined $HUB_URL && $HUB_URL ne '') {
+        push @tools, {
+            name        => "hub_publish",
+            description => "Publish a local generated tool to the Hub Server for sharing with other MCP instances.",
+            inputSchema => {
+                type => "object",
+                properties => {
+                    name => {
+                        type => "string",
+                        description => "Name of the local tool to publish.",
+                    },
+                },
+                required => ["name"],
+            },
+        };
+        push @tools, {
+            name        => "hub_search",
+            description => "Semantic search for tools on the Hub Server.",
+            inputSchema => {
+                type => "object",
+                properties => {
+                    query => {
+                        type => "string",
+                        description => "Search query (natural language).",
+                    },
+                    limit => {
+                        type => "number",
+                        description => "Maximum number of results (default: 10).",
+                    },
+                },
+                required => ["query"],
+            },
+        };
+        push @tools, {
+            name        => "hub_pull",
+            description => "Download a tool from the Hub Server and install it locally.",
+            inputSchema => {
+                type => "object",
+                properties => {
+                    name => {
+                        type => "string",
+                        description => "Name of the tool to pull from Hub.",
+                    },
+                },
+                required => ["name"],
+            },
+        };
+        push @tools, {
+            name        => "hub_list",
+            description => "List tools available on the Hub Server.",
+            inputSchema => {
+                type => "object",
+                properties => {
+                    prefix => {
+                        type => "string",
+                        description => "Optional prefix to filter tool names.",
+                    },
                 },
             },
-            required => ["name"],
-        },
-    };
-    push @tools, {
-        name        => "hub_search",
-        description => "Semantic search for tools on the Hub Server.",
-        inputSchema => {
-            type => "object",
-            properties => {
-                query => {
-                    type => "string",
-                    description => "Search query (natural language).",
-                },
-                limit => {
-                    type => "number",
-                    description => "Maximum number of results (default: 10).",
-                },
-            },
-            required => ["query"],
-        },
-    };
-    push @tools, {
-        name        => "hub_pull",
-        description => "Download a tool from the Hub Server and install it locally.",
-        inputSchema => {
-            type => "object",
-            properties => {
-                name => {
-                    type => "string",
-                    description => "Name of the tool to pull from Hub.",
-                },
-            },
-            required => ["name"],
-        },
-    };
-    push @tools, {
-        name        => "hub_list",
-        description => "List tools available on the Hub Server.",
-        inputSchema => {
-            type => "object",
-            properties => {
-                prefix => {
-                    type => "string",
-                    description => "Optional prefix to filter tool names.",
-                },
-            },
-        },
-    };
+        };
+    }
 
     # Generated tools
     for my $name (sort keys %tool_registry) {

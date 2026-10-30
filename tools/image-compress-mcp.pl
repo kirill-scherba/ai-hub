@@ -1,5 +1,5 @@
 #!/usr/bin/env perl
-# image-compress.pl — MCP server for image_compress tool
+# image-compress-mcp.pl — MCP server for the image_compress tool
 # Compresses/resizes images to a target size (default: 1MB)
 # Usage: standalone MCP server (started by opencode as external MCP)
 #
