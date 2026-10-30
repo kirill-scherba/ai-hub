@@ -43,6 +43,14 @@ repository root and packaged by `.github/workflows/tools-release.yml` on a `tool
 is packaged there too (`ai-hub_<version>.zip` = `generative-mcp-hub.pl` + `tools.json`), so an installation
 starts with the full local tool set.
 
+The folder is also the workshop for generated tools, and the suffix is the whole rule: `*-mcp.pl` is
+published, everything else (a readable source, a probe, a one-off script) never leaves the repository.
+A tool that needs no dependency and no key belongs in `tools.json` and does **not** get a standalone
+twin - the function would then exist twice, in two places to keep in sync (30.10.2026; the deleted
+`deploy-check-mcp.pl` and `token-counter-mcp.pl` were exactly that). A standalone server is for what
+the generator cannot honestly host: a model key (vision), an API token (cloudflare), a binary
+dependency (image-compress needs ImageMagick).
+
 The split between the two is a rule, not a preference: **a server that needs a model key is not the hub**.
 `vision_analyze` and `image_gen` therefore live in `tools/vision-mcp.pl` (env `OPENAI_API_KEY`,
 `IMAGE_DIR`, `IMAGE_BASE_URL`), while the hub runs generated code in a sandbox and holds no keys.

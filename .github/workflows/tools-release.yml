@@ -1,8 +1,9 @@
 # Release for the MCP servers that live inside this repository.
 #
-# Each tool under tools/ is a standalone Perl MCP server. A tag packages every one of them as its own
-# archive, so a distribution catalog can point at "ai-hub deploy-check 1.0.0" without needing a separate
-# repository per script.
+# Each tools/<name>-mcp.pl is a standalone Perl MCP server. A tag packages every one of them as its own
+# archive, so a distribution catalog can point at "ai-hub cloudflare-mcp 1.0.0" without needing a separate
+# repository per script. The suffix is the rule: everything else in tools/ is workshop material for
+# tools.json and is never published.
 name: tools-release
 
 on:

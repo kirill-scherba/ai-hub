@@ -22,27 +22,6 @@
       "docs": "https://github.com/kirill-scherba/ai-hub#readme"
     },
     {
-      "name": "deploy-check",
-      "asset_base": "deploy-check",
-      "install": "script",
-      "command": [
-        "deploy-check-mcp.pl"
-      ],
-      "entries": {
-        "any": "deploy-check-mcp.pl"
-      },
-      "category": "web",
-      "title": {
-        "ru": "Проверка деплоя",
-        "en": "Deploy check"
-      },
-      "description": {
-        "ru": "Здоровье сайта: код ответа, время, срок SSL, robots.txt и sitemap.xml.",
-        "en": "Site health: status code, response time, SSL expiry, robots.txt and sitemap.xml."
-      },
-      "docs": "https://github.com/kirill-scherba/ai-hub#readme"
-    },
-    {
       "name": "cloudflare-mcp",
       "asset_base": "cloudflare",
       "install": "script",
