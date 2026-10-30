@@ -334,7 +334,7 @@ while (my $line = <STDIN>) {
                 },
                 {
                     name        => 'image_gen',
-                    description => 'Generate an image from a text prompt (OpenAI Images API) and save it as a PNG. Returns the local path and, when the folder is published, a URL.',
+                    description => 'Generate an image from a text prompt (OpenAI Images API) and save it as a PNG in IMAGE_DIR. Returns the local path and, when the folder is published, a URL. Show the picture in the answer, do not announce it: put the returned path on its own line, or as ![caption](path) - the AnyText window renders it, and the caption should name the collection and the file.',
                     inputSchema => {
                         type       => 'object',
                         properties => {
