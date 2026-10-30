@@ -334,7 +334,7 @@ while (my $line = <STDIN>) {
                 },
                 {
                     name        => 'image_gen',
-                    description => 'Generate an image from a text prompt (OpenAI Images API) and save it as a PNG in IMAGE_DIR. Returns the local path of the file and, when the folder is published, a URL. In the answer put the returned path on a line of its own: the AnyText window then shows the picture and captions it with the collection and the file name. Add the URL only when the picture must be seen outside the window.',
+                    description => 'Generate an image from a text prompt (OpenAI Images API) and save it as a PNG in IMAGE_DIR. Returns the local path and, when the folder is published, a URL.\n\nIMPORTANT: after generating you MUST show the picture in the answer. Put the returned path on a line of its own, for example:\n\n![img_1793389847.png](/srv/gallery/i/img_1793389847.png)\n\nAnyText renders that line as the picture itself and captions it with the collection and the file name. A sentence like "готово, файл: /srv/gallery/i/img_1793389847.png" shows nothing - the person asked for a picture, not for a path. Add the URL only when the picture must also be seen outside the window.',
                     inputSchema => {
                         type       => 'object',
                         properties => {
