@@ -77,7 +77,10 @@
           "secret": true
         }
       ],
-      "docs": "https://github.com/kirill-scherba/ai-hub#readme"
+      "docs": "https://github.com/kirill-scherba/ai-hub#readme",
+      "env": {
+        "IMAGE_DIR": "${config}/images"
+      }
     },
     {
       "name": "image-compress",
